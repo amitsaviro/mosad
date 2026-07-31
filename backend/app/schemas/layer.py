@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class LayerCreate(BaseModel):
@@ -10,6 +10,14 @@ class LayerCreate(BaseModel):
     someone else's institution)."""
     name: str
     description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be blank")
+        return stripped
 
 
 class LayerJoin(BaseModel):

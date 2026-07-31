@@ -127,6 +127,16 @@ def test_user_cannot_join_layer_in_a_different_institution(client):
     assert response.status_code == 403
 
 
+def test_blank_layer_name_is_rejected(client):
+    token, _ = _register(client, "blankname@test.com")
+
+    response = client.post(
+        "/api/v1/layers", json={"name": "   "}, headers=_auth_headers(token)
+    )
+
+    assert response.status_code == 422
+
+
 def test_duplicate_layer_name_in_same_institution_is_rejected_cleanly(client):
     admin_token, _ = _register(client, "admin6@test.com")
     headers = _auth_headers(admin_token)

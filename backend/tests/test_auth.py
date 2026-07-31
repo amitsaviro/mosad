@@ -2,6 +2,23 @@
 # Each test uses the `client` fixture from conftest.py, which talks to
 # a real (but temporary) Postgres database — not mocks — so these tests
 # catch real bugs in our SQL/ORM code, not just our Python logic.
+from datetime import datetime, timedelta, timezone
+
+from jose import jwt
+
+from app.config import settings
+
+
+def _expired_token_for(user_id: str) -> str:
+    # Builds a token the same way create_access_token does, but with an
+    # expiry in the past, to prove expired tokens actually get rejected.
+    payload = {
+        "sub": user_id,
+        "institution_id": None,
+        "role": None,
+        "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
 def _register(client, email="user@test.com", password="pass1234", full_name="Test User"):
@@ -98,3 +115,14 @@ def test_register_rejects_invalid_email_format(client):
     response = _register(client, email="not-an-email")
 
     assert response.status_code == 422
+
+
+def test_me_with_expired_token_is_rejected(client):
+    user_id = _register(client, email="expired@test.com").json()["user"]["id"]
+    token = _expired_token_for(user_id)
+
+    response = client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 401
