@@ -23,6 +23,7 @@ class Layer(UUIDPKMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
+    join_code: Mapped[str] = mapped_column(String(8), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     institution: Mapped["Institution"] = relationship(back_populates="layers")
