@@ -92,7 +92,7 @@ export default function DashboardScreen() {
           שלום, {user?.full_name}
         </ThemedText>
         <ThemedText type="small" style={styles.rtlText}>
-          {isAdmin ? 'מנהל מוסד' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
+          {isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
         </ThemedText>
         <Pressable onPress={logout}>
           <ThemedText type="link">התנתקות</ThemedText>

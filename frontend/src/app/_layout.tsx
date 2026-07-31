@@ -37,7 +37,7 @@ function RootNavigator() {
 
   return (
     <Stack>
-      <Stack.Screen name="index" options={{ title: 'Mosad' }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
       <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
       <Stack.Screen name="layer/[id]" options={{ title: 'שכבה' }} />
