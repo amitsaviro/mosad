@@ -1,3 +1,5 @@
+# More endpoints will be added here in phase 4 (list layers, assign/
+# unassign counselors, list participants). For now: create + join.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,7 +15,7 @@ router = APIRouter(prefix="/layers", tags=["layers"])
 @router.post("", response_model=LayerOut, status_code=201)
 def create_layer_endpoint(
     payload: LayerCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),   # must be logged in
     db: Session = Depends(get_db),
 ):
     return create_layer(db, current_user, payload)

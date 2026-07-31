@@ -1,3 +1,7 @@
+# Importing this package (`from app import models`) pulls in every
+# model file below. This matters for Alembic: it only "sees" a table
+# if the model class has actually been imported somewhere before
+# autogenerate runs.
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.institution import Institution
 from app.models.layer import Layer

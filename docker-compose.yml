@@ -1,15 +1,18 @@
+# This file describes what containers to run for local development.
+# Right now we only run Postgres here — the backend and frontend run
+# directly on your machine (not in Docker) so code reload stays fast.
 services:
   db:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
+    image: postgres:16          # official Postgres image, version 16
+    restart: unless-stopped      # auto-restart the container if it crashes
+    environment:                 # these become the DB's username/password/db-name
       POSTGRES_USER: mosad
       POSTGRES_PASSWORD: mosad_dev_password
       POSTGRES_DB: mosad
     ports:
-      - "5432:5432"
+      - "5432:5432"             # expose Postgres's default port to your machine
     volumes:
-      - mosad_pg_data:/var/lib/postgresql/data
+      - mosad_pg_data:/var/lib/postgresql/data   # persist DB data across restarts
 
 volumes:
-  mosad_pg_data:
+  mosad_pg_data:   # named volume — Docker manages the actual storage location

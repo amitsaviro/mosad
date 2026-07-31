@@ -1,3 +1,7 @@
+# A "Participant" is a child/teen (חניך) belonging to one Layer.
+# Kept minimal for now — attendance, notes and birthday alerts (phase 9)
+# will hang additional tables off of participant_id later, so this
+# table stays simple and doesn't need reworking then.
 import uuid
 from datetime import date
 from typing import TYPE_CHECKING
@@ -22,6 +26,8 @@ class Participant(UUIDPKMixin, TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     guardian_contact: Mapped[str | None] = mapped_column(String, nullable=True)
+    # "soft delete": mark inactive instead of removing the row, so
+    # attendance/notes history from past years is never lost.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     layer: Mapped["Layer"] = relationship(back_populates="participants")

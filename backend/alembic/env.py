@@ -5,6 +5,9 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# --- The 3 lines below are OUR additions to Alembic's generated template ---
+# Importing app.models runs every model file, so Base.metadata "knows"
+# about all 5 tables before autogenerate tries to compare them to the DB.
 from app import models  # noqa: F401  (import registers all models on Base.metadata)
 from app.config import settings
 from app.database import Base
@@ -12,6 +15,8 @@ from app.database import Base
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+# Reuse the same DATABASE_URL from .env instead of hardcoding it a
+# second time in alembic.ini.
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
@@ -19,7 +24,7 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+target_metadata = Base.metadata   # "the full set of tables Alembic should manage"
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
