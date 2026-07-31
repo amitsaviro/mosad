@@ -5,6 +5,7 @@ import secrets
 import string
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
@@ -61,7 +62,17 @@ def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
         join_code=_generate_join_code(db),
     )
     db.add(layer)
-    db.flush()   # need layer.id before we can reference it below
+
+    try:
+        db.flush()   # need layer.id before we can reference it below
+    except IntegrityError:
+        # Hits the (institution_id, name) unique constraint — this
+        # institution already has a layer with this exact name.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A layer with this name already exists in your institution",
+        )
 
     # The creator is also counted as a counselor on their own layer,
     # since in real life "the manager is sometimes also a counselor".

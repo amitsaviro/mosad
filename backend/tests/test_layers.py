@@ -127,6 +127,16 @@ def test_user_cannot_join_layer_in_a_different_institution(client):
     assert response.status_code == 403
 
 
+def test_duplicate_layer_name_in_same_institution_is_rejected_cleanly(client):
+    admin_token, _ = _register(client, "admin6@test.com")
+    headers = _auth_headers(admin_token)
+    first = client.post("/api/v1/layers", json={"name": "Same Name"}, headers=headers)
+    second = client.post("/api/v1/layers", json={"name": "Same Name"}, headers=headers)
+
+    assert first.status_code == 201
+    assert second.status_code == 400  # not a 500 crash
+
+
 def test_counselor_cannot_create_additional_layers(client):
     admin_token, _ = _register(client, "admin5@test.com")
     layer = client.post(

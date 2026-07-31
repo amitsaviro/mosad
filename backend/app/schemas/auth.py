@@ -1,5 +1,5 @@
 # Request/response shapes for the auth endpoints.
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserOut
 
@@ -7,7 +7,9 @@ from app.schemas.user import UserOut
 class UserRegister(BaseModel):
     """Body expected by POST /auth/register."""
     email: EmailStr   # EmailStr validates the format automatically
-    password: str     # plain text here (over HTTPS in prod) — hashed before storage
+    # min_length=8: FastAPI/Pydantic rejects shorter passwords with a
+    # 422 error before our code ever runs, e.g. an empty password.
+    password: str = Field(min_length=8)   # plain text here (over HTTPS in prod) — hashed before storage
     full_name: str
 
 

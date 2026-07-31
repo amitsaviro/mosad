@@ -78,3 +78,23 @@ def test_me_with_valid_token_returns_current_user(client):
 
     assert response.status_code == 200
     assert response.json()["email"] == "me@test.com"
+
+
+def test_me_with_garbage_token_is_rejected(client):
+    response = client.get(
+        "/api/v1/auth/me", headers={"Authorization": "Bearer not-a-real-jwt"}
+    )
+
+    assert response.status_code == 401
+
+
+def test_register_rejects_password_shorter_than_8_chars(client):
+    response = _register(client, password="short")
+
+    assert response.status_code == 422
+
+
+def test_register_rejects_invalid_email_format(client):
+    response = _register(client, email="not-an-email")
+
+    assert response.status_code == 422
