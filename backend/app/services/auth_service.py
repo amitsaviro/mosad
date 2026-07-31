@@ -7,6 +7,22 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.schemas.auth import UserLogin, UserRegister
+from app.schemas.user import UserOut
+
+
+def build_user_out(user: User) -> UserOut:
+    """Institution name lives on a related Institution row, not
+    directly on User, so it can't come from a plain model_validate —
+    this walks the relationship explicitly (SQLAlchemy lazy-loads
+    user.institution on first access within the request's DB session)."""
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        institution_id=user.institution_id,
+        institution_name=user.institution.name if user.institution else None,
+    )
 
 
 def register_user(db: Session, payload: UserRegister) -> User:

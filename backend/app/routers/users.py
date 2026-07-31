@@ -8,6 +8,7 @@ from app.core.deps import require_institution_admin
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserOut
+from app.services.auth_service import build_user_out
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -19,4 +20,5 @@ def list_institution_users(
 ):
     """Lets an admin see everyone in their institution — used to pick
     who to assign as a counselor on a layer."""
-    return db.query(User).filter(User.institution_id == admin.institution_id).all()
+    users = db.query(User).filter(User.institution_id == admin.institution_id).all()
+    return [build_user_out(user) for user in users]

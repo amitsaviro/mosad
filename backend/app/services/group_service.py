@@ -49,7 +49,13 @@ def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
 
     if user.institution_id is None:
         # First layer ever for this user -> becomes an institution admin automatically.
-        institution = Institution(name=f"{user.full_name}'s institution", slug=str(user.id))
+        institution_name = (payload.institution_name or "").strip()
+        if not institution_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="institution_name is required when creating your first group",
+            )
+        institution = Institution(name=institution_name, slug=str(user.id))
         db.add(institution)
         db.flush()   # sends the INSERT so institution.id exists, without committing yet
         user.institution_id = institution.id

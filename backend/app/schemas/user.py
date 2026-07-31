@@ -17,6 +17,11 @@ class UserOut(BaseModel):
     full_name: str
     role: UserRole | None
     institution_id: uuid.UUID | None
+    # Not a plain attribute on the User model (it's a relationship
+    # traversal: user.institution.name) — built explicitly via
+    # build_user_out() in auth_service.py rather than relying on
+    # automatic model_validate(user) conversion.
+    institution_name: str | None = None
 
     # Lets Pydantic build this schema directly from a SQLAlchemy User
     # object (UserOut.model_validate(user)), not just from a dict.

@@ -9,22 +9,59 @@ from sqlalchemy.orm import Session
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.layer import Layer
 from app.models.user import User, UserRole
+from app.schemas.layer import LayerOut
 
 
 def list_layers_for_user(db: Session, user: User) -> list[Layer]:
-    """Admins see every layer in their institution. Counselors only see
-    the layers they've actually been assigned to."""
-    if user.role == UserRole.institution_admin:
-        return db.query(Layer).filter(Layer.institution_id == user.institution_id).all()
+    """Everyone in an institution sees every layer in it — an admin AND
+    a counselor. What differs is what they're allowed to DO with each
+    layer (see user_can_manage_layer): a counselor sees other layers
+    read-only, "view-only" from the frontend's perspective."""
+    return db.query(Layer).filter(Layer.institution_id == user.institution_id).all()
 
-    # .join(...) here means a SQL JOIN, not our CounselorLayerAssignment
-    # model — walks: Layer <- CounselorLayerAssignment, then keeps only
-    # the rows where that assignment belongs to this user.
+
+def user_can_view_layer(user: User, layer: Layer) -> bool:
+    """Read access: anyone in the same institution, regardless of role
+    or assignment. Used for viewing layer details and the participant
+    roster."""
+    return user.institution_id is not None and user.institution_id == layer.institution_id
+
+
+def user_can_manage_layer(db: Session, user: User, layer: Layer) -> bool:
+    """Write access: an institution admin (over their whole institution)
+    or a counselor specifically assigned to this exact layer. Used for
+    adding/editing participants, and for assigning other counselors."""
+    is_admin_of_this_institution = (
+        user.role == UserRole.institution_admin
+        and user.institution_id == layer.institution_id
+    )
+    if is_admin_of_this_institution:
+        return True
+
     return (
-        db.query(Layer)
-        .join(CounselorLayerAssignment, CounselorLayerAssignment.layer_id == Layer.id)
-        .filter(CounselorLayerAssignment.user_id == user.id)
-        .all()
+        db.query(CounselorLayerAssignment)
+        .filter(
+            CounselorLayerAssignment.user_id == user.id,
+            CounselorLayerAssignment.layer_id == layer.id,
+        )
+        .first()
+        is not None
+    )
+
+
+def to_layer_out(db: Session, user: User, layer: Layer) -> LayerOut:
+    """Builds the API response for a layer. can_manage is per-viewer (not
+    a property of the layer itself), so it can't come from a plain
+    ORM-to-schema auto-conversion — it has to be computed here, for the
+    specific user making the request."""
+    return LayerOut(
+        id=layer.id,
+        institution_id=layer.institution_id,
+        name=layer.name,
+        description=layer.description,
+        join_code=layer.join_code,
+        is_active=layer.is_active,
+        can_manage=user_can_manage_layer(db, user, layer),
     )
 
 

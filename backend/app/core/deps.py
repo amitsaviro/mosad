@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.database import get_db
-from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.layer import Layer
 from app.models.participant import Participant
 from app.models.user import User, UserRole
+from app.services.layer_service import user_can_manage_layer, user_can_view_layer
 
 # This tells FastAPI's auto-generated /docs page how to collect the
 # token from clients (as a header), and where "login" conceptually lives.
@@ -60,36 +60,14 @@ def require_institution_admin(current_user: User = Depends(get_current_user)) ->
     return current_user
 
 
-def _can_access_layer(db: Session, user: User, layer: Layer) -> bool:
-    """The one place the "admin of this institution OR assigned
-    counselor" rule is written. Both get_accessible_layer and
-    get_accessible_participant delegate to this, so the rule can never
-    drift out of sync between the two."""
-    is_admin_of_this_institution = (
-        user.role == UserRole.institution_admin
-        and user.institution_id == layer.institution_id
-    )
-    if is_admin_of_this_institution:
-        return True
-
-    return (
-        db.query(CounselorLayerAssignment)
-        .filter(
-            CounselorLayerAssignment.user_id == user.id,
-            CounselorLayerAssignment.layer_id == layer.id,
-        )
-        .first()
-        is not None
-    )
-
-
-def get_accessible_layer(
+def get_viewable_layer(
     layer_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Layer:
-    """The central "can this user touch this layer" check, reused by
-    every layer/participant route. FastAPI automatically fills
+    """READ access: anyone in the same institution — an admin, their
+    own assigned counselors, or a counselor just browsing another
+    layer in their institution read-only. FastAPI automatically fills
     `layer_id` from the URL path because the route also declares a
     `layer_id` path parameter with the same name.
 
@@ -99,7 +77,25 @@ def get_accessible_layer(
         status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
     )
     layer = db.get(Layer, layer_id)
-    if layer is None or not _can_access_layer(db, current_user, layer):
+    if layer is None or not user_can_view_layer(current_user, layer):
+        raise not_found
+    return layer
+
+
+def get_manageable_layer(
+    layer_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Layer:
+    """WRITE access: admin of this institution, or a counselor actually
+    assigned to this specific layer. Used for anything that changes
+    data (adding participants, assigning counselors) — narrower than
+    get_viewable_layer."""
+    not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
+    )
+    layer = db.get(Layer, layer_id)
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
         raise not_found
     return layer
 
@@ -109,9 +105,9 @@ def get_accessible_participant(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Participant:
-    """Same idea as get_accessible_layer, but for routes keyed by
-    participant_id instead (e.g. PATCH /participants/{id}) — access is
-    determined by the participant's own layer."""
+    """For routes keyed by participant_id instead of layer_id (e.g.
+    PATCH /participants/{id}, which edits data) — requires WRITE access
+    to the participant's own layer."""
     not_found = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found"
     )
@@ -120,6 +116,6 @@ def get_accessible_participant(
         raise not_found
 
     layer = db.get(Layer, participant.layer_id)
-    if layer is None or not _can_access_layer(db, current_user, layer):
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
         raise not_found
     return participant

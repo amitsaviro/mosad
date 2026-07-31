@@ -71,18 +71,25 @@ export default function LayerDetailScreen() {
           קוד הצטרפות: {layer.join_code}
         </ThemedText>
       )}
+      {layer && !layer.can_manage && (
+        <ThemedText type="small" style={[styles.rtlText, styles.viewOnlyBadge]}>
+          צפייה בלבד — אינך משוייך לשכבה זו
+        </ThemedText>
+      )}
 
       {error && <ThemedText style={[styles.error, styles.rtlText]}>{error}</ThemedText>}
 
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle" style={styles.rtlText}>
-          הוספת חניך
-        </ThemedText>
-        <TextInput style={styles.input} placeholder="שם החניך" value={newName} onChangeText={setNewName} />
-        <Pressable style={styles.button} onPress={handleAddParticipant}>
-          <ThemedText style={styles.buttonText}>הוסף</ThemedText>
-        </Pressable>
-      </ThemedView>
+      {layer?.can_manage && (
+        <ThemedView style={styles.card}>
+          <ThemedText type="subtitle" style={styles.rtlText}>
+            הוספת חניך
+          </ThemedText>
+          <TextInput style={styles.input} placeholder="שם החניך" value={newName} onChangeText={setNewName} />
+          <Pressable style={styles.button} onPress={handleAddParticipant}>
+            <ThemedText style={styles.buttonText}>הוסף</ThemedText>
+          </Pressable>
+        </ThemedView>
+      )}
 
       <ThemedText type="subtitle" style={styles.rtlText}>
         רשימת חניכים ({participants.length})
@@ -98,9 +105,11 @@ export default function LayerDetailScreen() {
             >
               {item.full_name}
             </ThemedText>
-            <Pressable onPress={() => handleToggleActive(item)}>
-              <ThemedText type="link">{item.is_active ? 'השבת' : 'הפעל'}</ThemedText>
-            </Pressable>
+            {layer?.can_manage && (
+              <Pressable onPress={() => handleToggleActive(item)}>
+                <ThemedText type="link">{item.is_active ? 'השבת' : 'הפעל'}</ThemedText>
+              </Pressable>
+            )}
           </ThemedView>
         )}
         ListEmptyComponent={
@@ -164,5 +173,9 @@ const styles = StyleSheet.create({
   inactiveText: {
     textDecorationLine: 'line-through',
     opacity: 0.5,
+  },
+  viewOnlyBadge: {
+    color: '#888',
+    fontStyle: 'italic',
   },
 });

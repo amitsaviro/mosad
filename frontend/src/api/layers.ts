@@ -9,8 +9,12 @@ export function getLayer(layerId: string) {
   return api.get<Layer>(`/layers/${layerId}`);
 }
 
-export function createLayer(name: string, description?: string) {
-  return api.post<Layer>('/layers', { name, description });
+export function createLayer(name: string, description?: string, institutionName?: string) {
+  return api.post<Layer>('/layers', {
+    name,
+    description,
+    institution_name: institutionName,
+  });
 }
 
 export function joinLayer(joinCode: string) {

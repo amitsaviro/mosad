@@ -9,6 +9,7 @@ export type User = {
   full_name: string;
   role: UserRole | null;
   institution_id: string | null;
+  institution_name: string | null;
 };
 
 export type AuthResponse = {
@@ -24,6 +25,7 @@ export type Layer = {
   description: string | null;
   join_code: string;
   is_active: boolean;
+  can_manage: boolean;
 };
 
 export type Participant = {

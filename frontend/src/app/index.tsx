@@ -17,11 +17,13 @@ export default function DashboardScreen() {
   const [counselors, setCounselors] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [newInstitutionName, setNewInstitutionName] = useState('');
   const [newLayerName, setNewLayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [assignEmailByLayer, setAssignEmailByLayer] = useState<Record<string, string>>({});
 
   const isAdmin = user?.role === 'institution_admin';
+  const hasNoGroupYet = !user?.institution_id;
 
   async function loadData() {
     setError(null);
@@ -44,12 +46,14 @@ export default function DashboardScreen() {
 
   async function handleCreateLayer() {
     if (!newLayerName.trim()) return;
+    if (hasNoGroupYet && !newInstitutionName.trim()) return;
     try {
-      await createLayer(newLayerName.trim());
+      await createLayer(newLayerName.trim(), undefined, newInstitutionName.trim() || undefined);
       setNewLayerName('');
+      setNewInstitutionName('');
       // Creating your first-ever layer turns you into an institution
       // admin server-side — refresh the local user so the UI picks
-      // that up immediately (e.g. shows the "create layer" form again).
+      // that up immediately (e.g. shows the institution name heading).
       await refreshUser();
       await loadData();
     } catch (err) {
@@ -91,6 +95,11 @@ export default function DashboardScreen() {
         <ThemedText type="title" style={styles.rtlText}>
           שלום, {user?.full_name}
         </ThemedText>
+        {user?.institution_name && (
+          <ThemedText type="subtitle" style={styles.rtlText}>
+            {user.institution_name}
+          </ThemedText>
+        )}
         <ThemedText type="small" style={styles.rtlText}>
           {isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
         </ThemedText>
@@ -105,9 +114,17 @@ export default function DashboardScreen() {
         <ThemedText type="subtitle" style={styles.rtlText}>
           {isAdmin ? 'צור שכבה חדשה' : 'צור קבוצת הדרכה משלך'}
         </ThemedText>
+        {hasNoGroupYet && (
+          <TextInput
+            style={styles.input}
+            placeholder="שם מסגרת החינוך (למשל: חינוך בית קמה)"
+            value={newInstitutionName}
+            onChangeText={setNewInstitutionName}
+          />
+        )}
         <TextInput
           style={styles.input}
-          placeholder="שם השכבה"
+          placeholder="שם השכבה (למשל: שכבה ז')"
           value={newLayerName}
           onChangeText={setNewLayerName}
         />
@@ -133,7 +150,7 @@ export default function DashboardScreen() {
       </ThemedView>
 
       <ThemedText type="subtitle" style={styles.rtlText}>
-        השכבות שלי
+        השכבות {user?.institution_name ? `של ${user.institution_name}` : 'שלי'}
       </ThemedText>
       <FlatList
         data={layers}
@@ -141,16 +158,23 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <ThemedView type="backgroundElement" style={styles.layerCard}>
-            <Link href={`/layer/${item.id}`}>
-              <ThemedText type="linkPrimary" style={styles.rtlText}>
-                {item.name}
-              </ThemedText>
-            </Link>
+            <ThemedView style={styles.layerTitleRow}>
+              <Link href={`/layer/${item.id}`}>
+                <ThemedText type="linkPrimary" style={styles.rtlText}>
+                  {item.name}
+                </ThemedText>
+              </Link>
+              {!item.can_manage && (
+                <ThemedText type="small" style={styles.viewOnlyBadge}>
+                  צפייה בלבד
+                </ThemedText>
+              )}
+            </ThemedView>
             <ThemedText type="small" style={styles.rtlText}>
               קוד הצטרפות: {item.join_code}
             </ThemedText>
 
-            {isAdmin && (
+            {isAdmin && item.can_manage && (
               <ThemedView style={styles.assignRow}>
                 <TextInput
                   style={[styles.input, styles.assignInput]}
@@ -233,6 +257,15 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: 12,
     gap: Spacing.one,
+  },
+  layerTitleRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  viewOnlyBadge: {
+    color: '#888',
+    fontStyle: 'italic',
   },
   assignRow: {
     flexDirection: 'row-reverse',

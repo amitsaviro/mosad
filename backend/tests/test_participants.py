@@ -1,4 +1,5 @@
-# Tests for: listing layers (role-filtered), assigning/unassigning
+# Tests for: listing layers (view for everyone in the institution,
+# manage only for admins/assigned counselors), assigning/unassigning
 # counselors, and the participant roster CRUD — including the tenant
 # isolation rule that a layer you don't have access to should 404, not 403.
 
@@ -16,10 +17,12 @@ def _auth_headers(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _make_admin_with_layer(client, admin_email, layer_name="Layer A"):
+def _make_admin_with_layer(client, admin_email, layer_name="Layer A", institution_name="Test Institution"):
     admin_token, admin_user = _register(client, admin_email)
     layer = client.post(
-        "/api/v1/layers", json={"name": layer_name}, headers=_auth_headers(admin_token)
+        "/api/v1/layers",
+        json={"name": layer_name, "institution_name": institution_name},
+        headers=_auth_headers(admin_token),
     ).json()
     return admin_token, admin_user, layer
 
@@ -35,11 +38,14 @@ def test_admin_sees_all_layers_in_their_institution(client):
     assert response.status_code == 200
     ids = {layer["id"] for layer in response.json()}
     assert ids == {layer_a["id"], layer_b["id"]}
+    assert all(layer["can_manage"] for layer in response.json())  # admin manages everything
 
 
-def test_counselor_only_sees_assigned_layers(client):
+def test_counselor_sees_all_institution_layers_but_can_manage_only_assigned(client):
     admin_token, _, layer_a = _make_admin_with_layer(client, "admin_b@test.com", "Layer A")
-    client.post("/api/v1/layers", json={"name": "Layer B"}, headers=_auth_headers(admin_token))
+    layer_b = client.post(
+        "/api/v1/layers", json={"name": "Layer B"}, headers=_auth_headers(admin_token)
+    ).json()
 
     counselor_token, _ = _register(client, "counselor_b@test.com")
     client.post(
@@ -51,8 +57,43 @@ def test_counselor_only_sees_assigned_layers(client):
     response = client.get("/api/v1/layers", headers=_auth_headers(counselor_token))
 
     assert response.status_code == 200
-    ids = {layer["id"] for layer in response.json()}
-    assert ids == {layer_a["id"]}   # only the layer they joined, not "Layer B"
+    by_id = {layer["id"]: layer for layer in response.json()}
+    # Sees BOTH layers in the institution now...
+    assert set(by_id.keys()) == {layer_a["id"], layer_b["id"]}
+    # ...but can only manage the one they're actually assigned to.
+    assert by_id[layer_a["id"]]["can_manage"] is True
+    assert by_id[layer_b["id"]]["can_manage"] is False
+
+
+def test_counselor_can_view_but_not_edit_an_unassigned_layer_in_same_institution(client):
+    admin_token, _, layer_a = _make_admin_with_layer(client, "admin_view@test.com", "Layer A")
+    layer_b = client.post(
+        "/api/v1/layers", json={"name": "Layer B"}, headers=_auth_headers(admin_token)
+    ).json()
+
+    counselor_token, _ = _register(client, "counselor_view@test.com")
+    client.post(
+        "/api/v1/layers/join",
+        json={"join_code": layer_a["join_code"]},
+        headers=_auth_headers(counselor_token),
+    )
+    headers = _auth_headers(counselor_token)
+
+    # Can view layer B's detail and (empty) roster read-only.
+    get_response = client.get(f"/api/v1/layers/{layer_b['id']}", headers=headers)
+    assert get_response.status_code == 200
+    assert get_response.json()["can_manage"] is False
+
+    roster_response = client.get(f"/api/v1/layers/{layer_b['id']}/participants", headers=headers)
+    assert roster_response.status_code == 200
+
+    # But cannot add a participant to it.
+    create_response = client.post(
+        f"/api/v1/layers/{layer_b['id']}/participants",
+        json={"full_name": "Someone"},
+        headers=headers,
+    )
+    assert create_response.status_code == 404
 
 
 def test_layer_not_accessible_returns_404_not_403(client):
@@ -89,9 +130,10 @@ def test_admin_can_assign_and_unassign_counselor(client):
     )
     assert assign_response.status_code == 204
 
-    # Counselor should now see both layers.
+    # Counselor now manages both layers.
     layers = client.get("/api/v1/layers", headers=_auth_headers(counselor_token)).json()
-    assert {l["id"] for l in layers} == {layer["id"], layer2["id"]}
+    manageable = {l["id"] for l in layers if l["can_manage"]}
+    assert manageable == {layer["id"], layer2["id"]}
 
     unassign_response = client.delete(
         f"/api/v1/layers/{layer2['id']}/assign-counselor/{counselor_user['id']}",
@@ -100,7 +142,8 @@ def test_admin_can_assign_and_unassign_counselor(client):
     assert unassign_response.status_code == 204
 
     layers_after = client.get("/api/v1/layers", headers=_auth_headers(counselor_token)).json()
-    assert {l["id"] for l in layers_after} == {layer["id"]}
+    manageable_after = {l["id"] for l in layers_after if l["can_manage"]}
+    assert manageable_after == {layer["id"]}
 
 
 def test_counselor_cannot_assign_other_counselors(client):
