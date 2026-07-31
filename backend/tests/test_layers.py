@@ -127,6 +127,24 @@ def test_user_cannot_join_layer_in_a_different_institution(client):
     assert response.status_code == 403
 
 
+def test_hebrew_names_round_trip_correctly(client):
+    # Target audience writes Hebrew, not English — make sure nothing
+    # (Postgres encoding, JSON handling, our own code) mangles it.
+    token, user = _register(client, "hebrew@test.com", full_name="עמית סביר")
+    assert user["full_name"] == "עמית סביר"
+
+    layer = client.post(
+        "/api/v1/layers",
+        json={"name": "שכבת יוד-אלף", "description": "קבוצת נוער בוגר, גילאי 16-17"},
+        headers=_auth_headers(token),
+    ).json()
+    assert layer["name"] == "שכבת יוד-אלף"
+    assert layer["description"] == "קבוצת נוער בוגר, גילאי 16-17"
+
+    me = client.get("/api/v1/auth/me", headers=_auth_headers(token)).json()
+    assert me["full_name"] == "עמית סביר"
+
+
 def test_blank_layer_name_is_rejected(client):
     token, _ = _register(client, "blankname@test.com")
 
