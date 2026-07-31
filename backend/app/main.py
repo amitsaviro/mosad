@@ -8,11 +8,11 @@ app = FastAPI(title="Mosad API")
 
 # Browsers block JS from calling a different origin (port) than the page
 # was loaded from, unless the server explicitly allows it (CORS).
-# The React dev server runs on :5173, this API on :8000 — different
+# Expo's web dev server runs on :8081, this API on :8000 — different
 # origins — so without this, the frontend couldn't call the backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:8081", "http://localhost:19006"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
