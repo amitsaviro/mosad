@@ -25,6 +25,11 @@ class LayerJoin(BaseModel):
     join_code: str
 
 
+class LayerAssignCounselor(BaseModel):
+    """Body for POST /layers/{layer_id}/assign-counselor."""
+    user_id: uuid.UUID
+
+
 class LayerOut(BaseModel):
     """What we return about a layer, including its join_code so the
     admin can share it with counselors."""
