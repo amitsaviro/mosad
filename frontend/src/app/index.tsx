@@ -188,6 +188,12 @@ export default function DashboardScreen() {
             )}
           </View>
           <View style={styles.headerActions}>
+            <Button
+              label="מאגר פעילויות"
+              onPress={() => router.push('/activities')}
+              variant="secondary"
+              fullWidth={false}
+            />
             <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
             <Link href="/profile">
               <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>
