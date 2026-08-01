@@ -19,7 +19,9 @@ if TYPE_CHECKING:
 class Institution(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "institutions"   # actual table name in Postgres
 
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    # Unique institution-wide: two different institutions with the exact
+    # same name would be confusing (which "חינוך בית קמה" is this?).
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     slug: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

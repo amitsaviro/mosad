@@ -1,6 +1,6 @@
 # The core business logic for creating and joining layers (groups).
-# This is where the "auto-create an institution behind the scenes"
-# idea actually happens.
+# Institution creation itself lives in institution_service.py — a
+# layer always belongs to an institution the user already has.
 import secrets
 import string
 
@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
-from app.models.institution import Institution
 from app.models.layer import Layer
 from app.models.user import User, UserRole
 from app.schemas.layer import LayerCreate
@@ -35,31 +34,19 @@ def _generate_join_code(db: Session, length: int = 6) -> str:
 
 
 def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
-    """Creates a new layer/group. Two different situations:
-    1) User has no institution yet -> this is their FIRST layer ever,
-       so we silently create an Institution for them and make them its admin.
-    2) User already belongs to an institution -> they must already be
-       an admin to add more layers (a plain counselor can't spawn new
-       layers under someone else's institution)."""
-    if user.institution_id is not None and user.role != UserRole.institution_admin:
+    """Creates a new layer/group inside the user's existing institution.
+    Requires the user to already be an institution admin — they must
+    create their institution first via POST /institutions."""
+    if user.institution_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="עליך ליצור קודם מסגרת חינוך (POST /institutions)",
+        )
+    if user.role != UserRole.institution_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="רק מנהל מוסד יכול ליצור שכבות נוספות",
         )
-
-    if user.institution_id is None:
-        # First layer ever for this user -> becomes an institution admin automatically.
-        institution_name = (payload.institution_name or "").strip()
-        if not institution_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="יש להזין שם למסגרת החינוך ביצירת הקבוצה הראשונה",
-            )
-        institution = Institution(name=institution_name, slug=str(user.id))
-        db.add(institution)
-        db.flush()   # sends the INSERT so institution.id exists, without committing yet
-        user.institution_id = institution.id
-        user.role = UserRole.institution_admin
 
     layer = Layer(
         institution_id=user.institution_id,

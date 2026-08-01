@@ -9,14 +9,20 @@ from app.core.deps import get_current_user, get_manageable_layer, get_viewable_l
 from app.database import get_db
 from app.models.layer import Layer
 from app.models.user import User
-from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut
+from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
+from app.schemas.user import UserOut
+from app.services.auth_service import build_user_out
 from app.services.group_service import create_layer, join_layer
 from app.services.layer_service import (
     assign_counselor,
+    delete_layer,
+    leave_layer,
+    list_assigned_counselors,
     list_layers_for_user,
     to_layer_out,
     unassign_counselor,
+    update_layer,
 )
 from app.services.participant_service import create_participant, list_participants
 
@@ -62,6 +68,43 @@ def get_layer_endpoint(
     db: Session = Depends(get_db),
 ):
     return to_layer_out(db, current_user, layer)
+
+
+@router.patch("/{layer_id}", response_model=LayerOut)
+def update_layer_endpoint(
+    payload: LayerUpdate,
+    layer: Layer = Depends(get_manageable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    updated = update_layer(db, layer, payload)
+    return to_layer_out(db, current_user, updated)
+
+
+@router.delete("/{layer_id}", status_code=204)
+def delete_layer_endpoint(
+    layer: Layer = Depends(get_manageable_layer),
+    admin: User = Depends(require_institution_admin),
+    db: Session = Depends(get_db),
+):
+    delete_layer(db, layer)
+
+
+@router.post("/{layer_id}/leave", status_code=204)
+def leave_layer_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    leave_layer(db, current_user, layer)
+
+
+@router.get("/{layer_id}/counselors", response_model=list[UserOut])
+def list_layer_counselors_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    db: Session = Depends(get_db),
+):
+    return [build_user_out(user) for user in list_assigned_counselors(db, layer)]
 
 
 @router.post("/{layer_id}/assign-counselor", status_code=204)
