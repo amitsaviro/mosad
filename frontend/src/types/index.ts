@@ -40,6 +40,31 @@ export type Participant = {
 
 export type ActivityType = 'opener' | 'main' | 'closing';
 
+// Content genre -- independent of ActivityType (the session-role of
+// opener/main/closing). An activity can belong to several at once.
+export type ActivityCategory =
+  | 'game'
+  | 'workshop'
+  | 'discussion'
+  | 'team_building'
+  | 'sports'
+  | 'arts'
+  | 'trip'
+  | 'ceremony'
+  | 'boys_evening'
+  | 'girls_evening';
+
+// A closed vocabulary rather than free text, so activities can be
+// filtered by location reliably.
+export type ActivityLocation =
+  | 'outdoor'
+  | 'indoor_room'
+  | 'sports_hall'
+  | 'classroom'
+  | 'dining_hall'
+  | 'field_trip'
+  | 'other';
+
 export type Attachment = {
   id: string;
   url: string;
@@ -53,20 +78,29 @@ export type Activity = {
   name: string;
   description: string;
   activity_type: ActivityType;
-  age_min: number | null;
-  age_max: number | null;
+  grade_min: number | null;
+  grade_max: number | null;
   duration_minutes: number | null;
   group_size_min: number | null;
   group_size_max: number | null;
-  location: string | null;
-  required_equipment: string | null;
+  location: ActivityLocation | null;
+  equipment: string[];
   budget_estimate: number | null;
   tags: string[];
+  categories: ActivityCategory[];
+  contact_phone: string | null;
   attachments: Attachment[];
   average_rating: number | null;
   usage_count: number;
   can_manage: boolean;
   created_at: string;
+};
+
+export type ActivityListResult = {
+  items: Activity[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type ActivityRating = {

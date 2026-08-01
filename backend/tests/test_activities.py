@@ -43,15 +43,17 @@ def test_create_and_get_activity(client):
     response = _create_activity(
         client,
         token,
-        age_min=10,
-        age_max=14,
+        grade_min=3,
+        grade_max=6,
         duration_minutes=30,
         group_size_min=5,
         group_size_max=30,
-        location="חוץ",
-        required_equipment="כדור, קונוסים",
+        location="outdoor",
+        equipment=["כדור", "קונוסים"],
         budget_estimate=15.5,
         tags=["קיץ", "ספורט"],
+        categories=["sports", "team_building"],
+        contact_phone="050-1234567",
         attachments=[{"url": "https://example.com/song.mp3", "label": "שיר לפעילות"}],
     )
 
@@ -60,6 +62,9 @@ def test_create_and_get_activity(client):
     assert activity["name"] == "משחק פתיחה כיפי"
     assert activity["creator_name"] == "יוצר הפעילות"
     assert activity["tags"] == ["קיץ", "ספורט"]
+    assert activity["equipment"] == ["כדור", "קונוסים"]
+    assert set(activity["categories"]) == {"sports", "team_building"}
+    assert activity["contact_phone"] == "050-1234567"
     assert len(activity["attachments"]) == 1
     assert activity["average_rating"] is None
     assert activity["usage_count"] == 0
@@ -86,10 +91,10 @@ def test_any_user_can_see_any_activity_not_institution_scoped(client):
     response = client.get("/api/v1/activities", headers=_auth_headers(other_token))
 
     assert response.status_code == 200
-    ids = {a["id"] for a in response.json()}
+    ids = {a["id"] for a in response.json()["items"]}
     assert activity["id"] in ids
     # can_manage is per-viewer -- the non-creator shouldn't be able to edit.
-    other_view = next(a for a in response.json() if a["id"] == activity["id"])
+    other_view = next(a for a in response.json()["items"] if a["id"] == activity["id"])
     assert other_view["can_manage"] is False
 
 
@@ -141,7 +146,7 @@ def test_search_filters_by_text(client):
     response = client.get("/api/v1/activities?search=אוצר", headers=_auth_headers(token))
 
     assert response.status_code == 200
-    names = {a["name"] for a in response.json()}
+    names = {a["name"] for a in response.json()["items"]}
     assert names == {"ציד אוצר בטבע"}
 
 
@@ -156,21 +161,124 @@ def test_filter_by_activity_type_and_tag(client):
     )
 
     assert response.status_code == 200
-    names = {a["name"] for a in response.json()}
+    names = {a["name"] for a in response.json()["items"]}
     assert names == {"פתיחה א"}
 
 
-def test_filter_by_age_range(client):
-    token, _ = _register(client, "ageuser@test.com")
-    _create_activity(client, token, name="לגילאי 8-10", age_min=8, age_max=10)
-    _create_activity(client, token, name="לכל הגילאים")  # no age restriction
-    _create_activity(client, token, name="לגילאי 15-18", age_min=15, age_max=18)
+def test_filter_by_category(client):
+    token, _ = _register(client, "categoryuser@test.com")
+    _create_activity(client, token, name="ספורט", categories=["sports"])
+    _create_activity(client, token, name="גיבוש", categories=["team_building"])
+    _create_activity(client, token, name="סדנה", categories=["workshop"])
 
-    response = client.get("/api/v1/activities?age=9", headers=_auth_headers(token))
+    response = client.get(
+        "/api/v1/activities?category=sports&category=team_building", headers=_auth_headers(token)
+    )
 
     assert response.status_code == 200
-    names = {a["name"] for a in response.json()}
-    assert names == {"לגילאי 8-10", "לכל הגילאים"}
+    names = {a["name"] for a in response.json()["items"]}
+    assert names == {"ספורט", "גיבוש"}
+
+
+def test_filter_by_location(client):
+    token, _ = _register(client, "locationuser@test.com")
+    _create_activity(client, token, name="בחוץ", location="outdoor")
+    _create_activity(client, token, name="באולם", location="sports_hall")
+
+    response = client.get("/api/v1/activities?location=outdoor", headers=_auth_headers(token))
+
+    assert response.status_code == 200
+    names = {a["name"] for a in response.json()["items"]}
+    assert names == {"בחוץ"}
+
+
+def test_filter_by_grade_range(client):
+    token, _ = _register(client, "gradeuser@test.com")
+    _create_activity(client, token, name="לשכבות ג-ד", grade_min=3, grade_max=4)
+    _create_activity(client, token, name="לכל השכבות")  # no grade restriction
+    _create_activity(client, token, name="לשכבות ט-יב", grade_min=9, grade_max=12)
+
+    response = client.get("/api/v1/activities?grade=4", headers=_auth_headers(token))
+
+    assert response.status_code == 200
+    names = {a["name"] for a in response.json()["items"]}
+    assert names == {"לשכבות ג-ד", "לכל השכבות"}
+
+
+def test_grade_max_below_min_is_rejected(client):
+    token, _ = _register(client, "gradeinvalid@test.com")
+
+    response = _create_activity(client, token, grade_min=8, grade_max=3)
+
+    assert response.status_code == 422
+
+
+def test_grade_out_of_range_is_rejected(client):
+    token, _ = _register(client, "gradeoutofrange@test.com")
+
+    response = _create_activity(client, token, grade_min=0)
+
+    assert response.status_code == 422
+
+
+def test_group_size_max_below_min_is_rejected(client):
+    token, _ = _register(client, "groupsizeinvalid@test.com")
+
+    response = _create_activity(client, token, group_size_min=20, group_size_max=5)
+
+    assert response.status_code == 422
+
+
+def test_negative_duration_is_rejected(client):
+    token, _ = _register(client, "negativeduration@test.com")
+
+    response = _create_activity(client, token, duration_minutes=-5)
+
+    assert response.status_code == 422
+
+
+def test_negative_budget_is_rejected(client):
+    token, _ = _register(client, "negativebudget@test.com")
+
+    response = _create_activity(client, token, budget_estimate=-1)
+
+    assert response.status_code == 422
+
+
+def test_non_numeric_grade_is_rejected(client):
+    token, _ = _register(client, "nonnumericgrade@test.com")
+
+    response = _create_activity(client, token, grade_min="לא מספר")
+
+    assert response.status_code == 422
+
+
+def test_partial_update_cannot_conflict_with_stored_grade(client):
+    token, _ = _register(client, "partialgradeupdate@test.com")
+    activity = _create_activity(client, token, grade_min=5, grade_max=8).json()
+
+    response = client.patch(
+        f"/api/v1/activities/{activity['id']}",
+        json={"grade_max": 2},
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_list_activities_is_paginated(client):
+    token, _ = _register(client, "pageuser@test.com")
+    for i in range(5):
+        _create_activity(client, token, name=f"פעילות מספר {i}")
+
+    response = client.get("/api/v1/activities?page=1&page_size=2", headers=_auth_headers(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["items"]) == 2
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert body["total"] >= 5
 
 
 def test_add_rating_and_average_computed(client):
@@ -257,13 +365,14 @@ def test_hebrew_activity_fields_round_trip(client):
         token,
         name="משחק חבל בשלג",
         description="פעילות חורף מהנה עם חבלים",
-        location="בחוץ בשלג",
-        required_equipment="חבלים, כפפות",
+        location="field_trip",
+        equipment=["חבלים", "כפפות"],
         tags=["חורף", "שלג"],
     )
 
     assert response.status_code == 201
     activity = response.json()
     assert activity["name"] == "משחק חבל בשלג"
-    assert activity["location"] == "בחוץ בשלג"
+    assert activity["location"] == "field_trip"
     assert activity["tags"] == ["חורף", "שלג"]
+    assert activity["equipment"] == ["חבלים", "כפפות"]

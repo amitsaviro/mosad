@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { listActivities } from '@/api/activities';
@@ -10,34 +10,57 @@ import { Card } from '@/components/card';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from '@/constants/activity';
+import {
+  ACTIVITY_CATEGORIES,
+  ACTIVITY_CATEGORY_LABELS,
+  ACTIVITY_LOCATIONS,
+  ACTIVITY_LOCATION_LABELS,
+  ACTIVITY_TYPES,
+  ACTIVITY_TYPE_LABELS,
+  GRADE_LABELS,
+  GRADE_LEVELS,
+} from '@/constants/activity';
 import { Spacing } from '@/constants/theme';
-import { Activity, ActivityType } from '@/types';
+import { Activity, ActivityCategory, ActivityLocation, ActivityType } from '@/types';
+
+const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const [search, setSearch] = useState('');
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
-  const [age, setAge] = useState('');
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [location, setLocation] = useState<ActivityLocation | null>(null);
+  const [grade, setGrade] = useState<number | null>(null);
   const [groupSize, setGroupSize] = useState('');
   const [tag, setTag] = useState('');
 
-  async function loadData() {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  async function loadData(targetPage: number) {
     setIsLoading(true);
     setError(null);
     try {
       const results = await listActivities({
         search: search.trim() || undefined,
         activity_type: activityType ?? undefined,
-        age: age.trim() ? Number(age.trim()) : undefined,
+        categories: categories.length > 0 ? categories : undefined,
+        location: location ?? undefined,
+        grade: grade ?? undefined,
         group_size: groupSize.trim() ? Number(groupSize.trim()) : undefined,
         tag: tag.trim() || undefined,
+        page: targetPage,
+        page_size: PAGE_SIZE,
       });
-      setActivities(results);
+      setActivities(results.items);
+      setTotal(results.total);
+      setPage(results.page);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'טעינת הפעילויות נכשלה');
     } finally {
@@ -45,10 +68,27 @@ export default function ActivitiesScreen() {
     }
   }
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Always call the latest loadData (current filter state), but keep
+  // the focus-effect callback itself stable so it only actually fires
+  // on real focus events -- not on every filter keystroke.
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
+  // Reload from page 1 every time this screen gains focus -- not just
+  // on first mount -- so returning here after creating an activity (or
+  // editing/deleting one) always shows the current state instead of a
+  // stale list from before the navigation away.
+  useFocusEffect(
+    useCallback(() => {
+      loadDataRef.current(1);
+    }, [])
+  );
+
+  function toggleCategory(category: ActivityCategory) {
+    setCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    );
+  }
 
   return (
     <ThemedView style={styles.flex}>
@@ -57,18 +97,23 @@ export default function ActivitiesScreen() {
           <ThemedText type="title" style={styles.rtlText}>
             מאגר פעילויות
           </ThemedText>
-          <Button
-            label="פעילות חדשה +"
-            fullWidth={false}
-            onPress={() => router.push('/activities/new')}
-          />
+          <View style={styles.headerActions}>
+            <Button
+              label="פעילות חדשה +"
+              fullWidth={false}
+              onPress={() => router.push('/activities/new')}
+            />
+            <Link href="/">
+              <ThemedText type="linkPrimary">← לדף הבית</ThemedText>
+            </Link>
+          </View>
         </View>
 
         <Card style={styles.filtersCard}>
           <TextField label="חיפוש" placeholder="שם או תיאור" value={search} onChangeText={setSearch} />
 
           <ThemedText type="smallBold" style={styles.rtlText}>
-            סוג פעילות
+            תפקיד בפעילות
           </ThemedText>
           <View style={styles.chipRow}>
             <Button
@@ -90,10 +135,69 @@ export default function ActivitiesScreen() {
             ))}
           </View>
 
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            קטגוריית תוכן (ניתן לבחור כמה)
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {ACTIVITY_CATEGORIES.map((category) => (
+              <Button
+                key={category}
+                label={ACTIVITY_CATEGORY_LABELS[category]}
+                size="small"
+                fullWidth={false}
+                variant={categories.includes(category) ? 'primary' : 'ghost'}
+                onPress={() => toggleCategory(category)}
+              />
+            ))}
+          </View>
+
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            מיקום
+          </ThemedText>
+          <View style={styles.chipRow}>
+            <Button
+              label="הכל"
+              size="small"
+              fullWidth={false}
+              variant={location === null ? 'primary' : 'ghost'}
+              onPress={() => setLocation(null)}
+            />
+            {ACTIVITY_LOCATIONS.map((loc) => (
+              <Button
+                key={loc}
+                label={ACTIVITY_LOCATION_LABELS[loc]}
+                size="small"
+                fullWidth={false}
+                variant={location === loc ? 'primary' : 'ghost'}
+                onPress={() => setLocation(loc)}
+              />
+            ))}
+          </View>
+
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            שכבה
+          </ThemedText>
+          <View style={styles.chipRow}>
+            <Button
+              label="הכל"
+              size="small"
+              fullWidth={false}
+              variant={grade === null ? 'primary' : 'ghost'}
+              onPress={() => setGrade(null)}
+            />
+            {GRADE_LEVELS.map((g) => (
+              <Button
+                key={g}
+                label={GRADE_LABELS[g]}
+                size="small"
+                fullWidth={false}
+                variant={grade === g ? 'primary' : 'ghost'}
+                onPress={() => setGrade(g)}
+              />
+            ))}
+          </View>
+
           <View style={styles.filterFieldsRow}>
-            <View style={styles.filterField}>
-              <TextField label="גיל" placeholder="למשל: 12" value={age} onChangeText={setAge} keyboardType="numeric" />
-            </View>
             <View style={styles.filterField}>
               <TextField
                 label="כמות משתתפים"
@@ -106,48 +210,48 @@ export default function ActivitiesScreen() {
           </View>
           <TextField label="תגית" placeholder="למשל: חנוכה" value={tag} onChangeText={setTag} />
 
-          <Button label="חפש" onPress={loadData} loading={isLoading} variant="secondary" />
+          <Button label="חפש" onPress={() => loadData(1)} loading={isLoading} variant="secondary" />
         </Card>
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+        {!isLoading && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+            {total} פעילויות נמצאו
+          </ThemedText>
+        )}
 
         {activities.length === 0 && !isLoading ? (
           <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
             לא נמצאו פעילויות התואמות את החיפוש.
           </ThemedText>
         ) : (
-          <View style={styles.list}>
+          <View style={styles.grid}>
             {activities.map((activity) => (
-              <Card key={activity.id} style={styles.activityCard}>
+              <Card key={activity.id} style={styles.tile}>
                 <View style={styles.titleRow}>
                   <Badge label={ACTIVITY_TYPE_LABELS[activity.activity_type]} tone="primary" />
-                  <ThemedText type="linkPrimary" style={styles.rtlText}>
-                    {activity.name}
-                  </ThemedText>
                 </View>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                  {activity.description.slice(0, 100)}
-                  {activity.description.length > 100 ? '…' : ''}
+                <ThemedText type="linkPrimary" style={styles.rtlText} numberOfLines={2}>
+                  {activity.name}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText} numberOfLines={2}>
+                  {activity.description}
                 </ThemedText>
                 <View style={styles.metaRow}>
                   {activity.average_rating !== null && (
-                    <ThemedText type="small">⭐ {activity.average_rating} ({activity.usage_count})</ThemedText>
+                    <ThemedText type="small">⭐ {activity.average_rating}</ThemedText>
                   )}
                   {activity.duration_minutes && (
                     <ThemedText type="small" themeColor="textSecondary">
                       {activity.duration_minutes} דק׳
                     </ThemedText>
                   )}
-                  {(activity.age_min || activity.age_max) && (
-                    <ThemedText type="small" themeColor="textSecondary">
-                      גילאי {activity.age_min ?? '?'}-{activity.age_max ?? '?'}
-                    </ThemedText>
-                  )}
                 </View>
-                {activity.tags.length > 0 && (
-                  <View style={styles.chipRow}>
-                    {activity.tags.map((t) => (
-                      <Badge key={t} label={t} />
+                {activity.categories.length > 0 && (
+                  <View style={styles.chipRowTight}>
+                    {activity.categories.slice(0, 2).map((c) => (
+                      <Badge key={c} label={ACTIVITY_CATEGORY_LABELS[c]} />
                     ))}
                   </View>
                 )}
@@ -155,11 +259,34 @@ export default function ActivitiesScreen() {
                   label="פרטים ←"
                   variant="secondary"
                   size="small"
-                  fullWidth={false}
                   onPress={() => router.push(`/activities/${activity.id}`)}
                 />
               </Card>
             ))}
+          </View>
+        )}
+
+        {totalPages > 1 && (
+          <View style={styles.paginationRow}>
+            <Button
+              label="הקודם"
+              size="small"
+              fullWidth={false}
+              variant="ghost"
+              disabled={page <= 1 || isLoading}
+              onPress={() => loadData(page - 1)}
+            />
+            <ThemedText type="small" themeColor="textSecondary">
+              עמוד {page} מתוך {totalPages}
+            </ThemedText>
+            <Button
+              label="הבא"
+              size="small"
+              fullWidth={false}
+              variant="ghost"
+              disabled={page >= totalPages || isLoading}
+              onPress={() => loadData(page + 1)}
+            />
           </View>
         )}
       </ScrollView>
@@ -173,8 +300,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.four,
-    gap: Spacing.four,
-    maxWidth: 720,
+    gap: Spacing.three,
+    maxWidth: 960,
     width: '100%',
     alignSelf: 'center',
   },
@@ -184,6 +311,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: Spacing.two,
+  },
+  headerActions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.three,
   },
   rtlText: {
     textAlign: 'right',
@@ -197,6 +329,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.two,
   },
+  chipRowTight: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
   filterFieldsRow: {
     flexDirection: 'row-reverse',
     gap: Spacing.two,
@@ -204,11 +341,15 @@ const styles = StyleSheet.create({
   filterField: {
     flex: 1,
   },
-  list: {
+  grid: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
     gap: Spacing.three,
   },
-  activityCard: {
+  tile: {
+    width: 220,
     gap: Spacing.one,
+    padding: 14,
   },
   titleRow: {
     flexDirection: 'row-reverse',
@@ -218,7 +359,14 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row-reverse',
-    gap: Spacing.three,
+    gap: Spacing.two,
     flexWrap: 'wrap',
+  },
+  paginationRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    marginTop: Spacing.two,
   },
 });

@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.models.activity import ActivityType
+from app.models.activity import ActivityCategory, ActivityLocation, ActivityType
 from app.models.user import User
 from app.schemas.activity import (
     ActivityCommentCreate,
     ActivityCommentOut,
     ActivityCreate,
+    ActivityListOut,
     ActivityOut,
     ActivityRatingCreate,
     ActivityRatingOut,
@@ -44,27 +45,40 @@ def create_activity_endpoint(
     return to_activity_out(current_user, activity)
 
 
-@router.get("", response_model=list[ActivityOut])
+@router.get("", response_model=ActivityListOut)
 def list_activities_endpoint(
     search: str | None = None,
     activity_type: ActivityType | None = None,
     tag: str | None = None,
-    age: int | None = None,
+    category: list[ActivityCategory] = Query(default=[]),
+    location: ActivityLocation | None = None,
+    grade: int | None = Query(default=None, ge=1, le=12),
     group_size: int | None = Query(default=None, alias="group_size"),
     max_duration: int | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    activities = list_activities(
+    activities, total = list_activities(
         db,
         search=search,
         activity_type=activity_type.value if activity_type else None,
         tag=tag,
-        age=age,
+        categories=[c.value for c in category] or None,
+        location=location.value if location else None,
+        grade=grade,
         group_size=group_size,
         max_duration=max_duration,
+        page=page,
+        page_size=page_size,
     )
-    return [to_activity_out(current_user, a) for a in activities]
+    return ActivityListOut(
+        items=[to_activity_out(current_user, a) for a in activities],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{activity_id}", response_model=ActivityOut)

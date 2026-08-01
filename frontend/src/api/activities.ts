@@ -1,28 +1,44 @@
 import { api } from '@/api/client';
-import { Activity, ActivityComment, ActivityRating, ActivityType, Attachment } from '@/types';
+import {
+  Activity,
+  ActivityCategory,
+  ActivityComment,
+  ActivityListResult,
+  ActivityLocation,
+  ActivityRating,
+  ActivityType,
+  Attachment,
+} from '@/types';
 
 export type ActivityFilters = {
   search?: string;
   activity_type?: ActivityType;
   tag?: string;
-  age?: number;
+  categories?: ActivityCategory[];
+  location?: ActivityLocation;
+  grade?: number;
   group_size?: number;
   max_duration?: number;
+  page?: number;
+  page_size?: number;
 };
 
 function buildQuery(filters: ActivityFilters): string {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== '' && value !== null) {
-      params.set(key, String(value));
+    if (value === undefined || value === '' || value === null) return;
+    if (key === 'categories') {
+      (value as ActivityCategory[]).forEach((category) => params.append('category', category));
+      return;
     }
+    params.set(key, String(value));
   });
   const query = params.toString();
   return query ? `?${query}` : '';
 }
 
 export function listActivities(filters: ActivityFilters = {}) {
-  return api.get<Activity[]>(`/activities${buildQuery(filters)}`);
+  return api.get<ActivityListResult>(`/activities${buildQuery(filters)}`);
 }
 
 export function getActivity(activityId: string) {
@@ -33,15 +49,17 @@ export type ActivityInput = {
   name: string;
   description: string;
   activity_type: ActivityType;
-  age_min?: number;
-  age_max?: number;
+  grade_min?: number;
+  grade_max?: number;
   duration_minutes?: number;
   group_size_min?: number;
   group_size_max?: number;
-  location?: string;
-  required_equipment?: string;
+  location?: ActivityLocation;
+  equipment?: string[];
   budget_estimate?: number;
   tags?: string[];
+  categories?: ActivityCategory[];
+  contact_phone?: string;
   attachments?: Pick<Attachment, 'url' | 'label'>[];
 };
 

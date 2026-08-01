@@ -12,7 +12,12 @@ import { ConfirmButton } from '@/components/confirm-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACTIVITY_TYPE_LABELS } from '@/constants/activity';
+import {
+  ACTIVITY_CATEGORY_LABELS,
+  ACTIVITY_LOCATION_LABELS,
+  ACTIVITY_TYPE_LABELS,
+  GRADE_LABELS,
+} from '@/constants/activity';
 import { Spacing } from '@/constants/theme';
 import { Activity, ActivityComment, ActivityRating, Layer } from '@/types';
 
@@ -105,6 +110,17 @@ export default function ActivityDetailScreen() {
               {activity.name}
             </ThemedText>
           </View>
+          {activity.categories.length > 0 ? (
+            <View style={styles.chipRow}>
+              {activity.categories.map((c) => (
+                <Badge key={c} label={ACTIVITY_CATEGORY_LABELS[c]} />
+              ))}
+            </View>
+          ) : (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              ללא סיווג תוכן מיוחד
+            </ThemedText>
+          )}
           <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
             הועלה על ידי {activity.creator_name}
           </ThemedText>
@@ -135,7 +151,7 @@ export default function ActivityDetailScreen() {
           <View style={styles.metaGrid}>
             {activity.location && (
               <ThemedText type="small" style={styles.rtlText}>
-                📍 מיקום: {activity.location}
+                📍 מיקום: {ACTIVITY_LOCATION_LABELS[activity.location]}
               </ThemedText>
             )}
             {activity.duration_minutes && (
@@ -143,9 +159,10 @@ export default function ActivityDetailScreen() {
                 ⏱ משך: {activity.duration_minutes} דקות
               </ThemedText>
             )}
-            {(activity.age_min || activity.age_max) && (
+            {(activity.grade_min || activity.grade_max) && (
               <ThemedText type="small" style={styles.rtlText}>
-                🎂 גילאים: {activity.age_min ?? '?'}-{activity.age_max ?? '?'}
+                🎓 שכבות: {activity.grade_min ? GRADE_LABELS[activity.grade_min] : '?'}-
+                {activity.grade_max ? GRADE_LABELS[activity.grade_max] : '?'}
               </ThemedText>
             )}
             {(activity.group_size_min || activity.group_size_max) && (
@@ -158,17 +175,32 @@ export default function ActivityDetailScreen() {
                 💰 תקציב משוער לחניך: ₪{activity.budget_estimate}
               </ThemedText>
             )}
+            {activity.contact_phone && (
+              <ThemedText
+                type="small"
+                style={styles.rtlText}
+                onPress={() => Linking.openURL(`tel:${activity.contact_phone}`)}
+              >
+                📞 ליצירת קשר: {activity.contact_phone}
+              </ThemedText>
+            )}
           </View>
 
-          {activity.required_equipment && (
-            <>
-              <ThemedText type="smallBold" style={styles.rtlText}>
-                ציוד נדרש
-              </ThemedText>
-              <ThemedText type="small" style={styles.rtlText}>
-                {activity.required_equipment}
-              </ThemedText>
-            </>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            ציוד נדרש
+          </ThemedText>
+          {activity.equipment.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              לא נדרש ציוד מיוחד לפעילות זו
+            </ThemedText>
+          ) : (
+            <View style={styles.list}>
+              {activity.equipment.map((item) => (
+                <ThemedText key={item} type="small" style={styles.rtlText}>
+                  • {item}
+                </ThemedText>
+              ))}
+            </View>
           )}
 
           {activity.tags.length > 0 && (

@@ -28,15 +28,17 @@ def create_activity(db: Session, user: User, payload: ActivityCreate) -> Activit
         name=payload.name,
         description=payload.description,
         activity_type=payload.activity_type,
-        age_min=payload.age_min,
-        age_max=payload.age_max,
+        grade_min=payload.grade_min,
+        grade_max=payload.grade_max,
         duration_minutes=payload.duration_minutes,
         group_size_min=payload.group_size_min,
         group_size_max=payload.group_size_max,
         location=payload.location,
-        required_equipment=payload.required_equipment,
+        equipment=payload.equipment,
         budget_estimate=payload.budget_estimate,
         tags=payload.tags,
+        categories=[c.value for c in payload.categories],
+        contact_phone=payload.contact_phone,
     )
     db.add(activity)
     db.flush()
@@ -54,10 +56,14 @@ def list_activities(
     search: str | None = None,
     activity_type: str | None = None,
     tag: str | None = None,
-    age: int | None = None,
+    categories: list[str] | None = None,
+    location: str | None = None,
+    grade: int | None = None,
     group_size: int | None = None,
     max_duration: int | None = None,
-) -> list[Activity]:
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Activity], int]:
     query = db.query(Activity)
 
     if search:
@@ -68,10 +74,16 @@ def list_activities(
     if tag:
         # ANY(tags) — Postgres array-contains-element check.
         query = query.filter(Activity.tags.any(tag))
-    if age is not None:
+    if categories:
+        # Match if the activity has ANY of the requested categories
+        # (a counselor picking "ספורט + גיבוש" wants either, not both).
+        query = query.filter(or_(*[Activity.categories.any(c) for c in categories]))
+    if location:
+        query = query.filter(Activity.location == location)
+    if grade is not None:
         query = query.filter(
-            or_(Activity.age_min.is_(None), Activity.age_min <= age),
-            or_(Activity.age_max.is_(None), Activity.age_max >= age),
+            or_(Activity.grade_min.is_(None), Activity.grade_min <= grade),
+            or_(Activity.grade_max.is_(None), Activity.grade_max >= grade),
         )
     if group_size is not None:
         query = query.filter(
@@ -83,7 +95,10 @@ def list_activities(
             or_(Activity.duration_minutes.is_(None), Activity.duration_minutes <= max_duration)
         )
 
-    return query.order_by(Activity.created_at.desc()).all()
+    query = query.order_by(Activity.created_at.desc())
+    total = query.count()
+    items = query.offset((page - 1) * page_size).limit(page_size).all()
+    return items, total
 
 
 def get_activity_or_404(db: Session, activity_id: uuid.UUID) -> Activity:
@@ -103,8 +118,28 @@ def require_creator(user: User, activity: Activity) -> None:
 
 def update_activity(db: Session, activity: Activity, payload: ActivityUpdate) -> Activity:
     changes = payload.model_dump(exclude_unset=True, exclude={"attachments"})
+    if changes.get("categories") is not None:
+        changes["categories"] = [c.value for c in payload.categories]
     for field, value in changes.items():
         setattr(activity, field, value)
+
+    # A partial update (e.g. only grade_max) can still conflict with the
+    # OTHER, unchanged side once merged into the stored activity --
+    # the schema-level check above only catches both-in-one-request.
+    if (
+        activity.grade_min is not None
+        and activity.grade_max is not None
+        and activity.grade_max < activity.grade_min
+    ):
+        raise HTTPException(status_code=422, detail="שכבה מקסימלית חייבת להיות גדולה או שווה לשכבה המינימלית")
+    if (
+        activity.group_size_min is not None
+        and activity.group_size_max is not None
+        and activity.group_size_max < activity.group_size_min
+    ):
+        raise HTTPException(
+            status_code=422, detail="כמות משתתפים מקסימלית חייבת להיות גדולה או שווה לכמות המינימלית"
+        )
 
     if payload.attachments is not None:
         # Replace wholesale: delete the old rows, add the new ones.
@@ -132,15 +167,17 @@ def to_activity_out(user: User, activity: Activity) -> ActivityOut:
         name=activity.name,
         description=activity.description,
         activity_type=activity.activity_type,
-        age_min=activity.age_min,
-        age_max=activity.age_max,
+        grade_min=activity.grade_min,
+        grade_max=activity.grade_max,
         duration_minutes=activity.duration_minutes,
         group_size_min=activity.group_size_min,
         group_size_max=activity.group_size_max,
         location=activity.location,
-        required_equipment=activity.required_equipment,
+        equipment=activity.equipment,
         budget_estimate=(float(activity.budget_estimate) if activity.budget_estimate is not None else None),
         tags=activity.tags,
+        categories=activity.categories,
+        contact_phone=activity.contact_phone,
         attachments=[AttachmentOut.model_validate(a) for a in activity.attachments],
         average_rating=average_rating(activity),
         usage_count=len(activity.ratings),

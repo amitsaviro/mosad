@@ -6,12 +6,22 @@ import { ActivityInput, createActivity, getActivity, updateActivity } from '@/ap
 import { ApiError } from '@/api/client';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { IconButton } from '@/components/icon-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from '@/constants/activity';
+import {
+  ACTIVITY_CATEGORIES,
+  ACTIVITY_CATEGORY_LABELS,
+  ACTIVITY_LOCATIONS,
+  ACTIVITY_LOCATION_LABELS,
+  ACTIVITY_TYPES,
+  ACTIVITY_TYPE_LABELS,
+  GRADE_LABELS,
+  GRADE_LEVELS,
+} from '@/constants/activity';
 import { Spacing } from '@/constants/theme';
-import { ActivityType } from '@/types';
+import { ActivityCategory, ActivityLocation, ActivityType } from '@/types';
 
 function toNumberOrUndefined(text: string): number | undefined {
   const trimmed = text.trim();
@@ -30,14 +40,17 @@ export default function NewActivityScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [activityType, setActivityType] = useState<ActivityType>('main');
-  const [ageMin, setAgeMin] = useState('');
-  const [ageMax, setAgeMax] = useState('');
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [gradeMin, setGradeMin] = useState<number | null>(null);
+  const [gradeMax, setGradeMax] = useState<number | null>(null);
   const [duration, setDuration] = useState('');
   const [groupMin, setGroupMin] = useState('');
   const [groupMax, setGroupMax] = useState('');
-  const [location, setLocation] = useState('');
-  const [equipment, setEquipment] = useState('');
+  const [location, setLocation] = useState<ActivityLocation | null>(null);
+  const [equipmentItems, setEquipmentItems] = useState<string[]>([]);
+  const [equipmentDraft, setEquipmentDraft] = useState('');
   const [budget, setBudget] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [tagsText, setTagsText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkLabel, setLinkLabel] = useState('');
@@ -53,14 +66,16 @@ export default function NewActivityScreen() {
         setName(activity.name);
         setDescription(activity.description);
         setActivityType(activity.activity_type);
-        setAgeMin(activity.age_min?.toString() ?? '');
-        setAgeMax(activity.age_max?.toString() ?? '');
+        setCategories(activity.categories);
+        setGradeMin(activity.grade_min);
+        setGradeMax(activity.grade_max);
         setDuration(activity.duration_minutes?.toString() ?? '');
         setGroupMin(activity.group_size_min?.toString() ?? '');
         setGroupMax(activity.group_size_max?.toString() ?? '');
-        setLocation(activity.location ?? '');
-        setEquipment(activity.required_equipment ?? '');
+        setLocation(activity.location);
+        setEquipmentItems(activity.equipment);
         setBudget(activity.budget_estimate?.toString() ?? '');
+        setContactPhone(activity.contact_phone ?? '');
         setTagsText(activity.tags.join(', '));
         if (activity.attachments.length > 0) {
           setLinkUrl(activity.attachments[0].url);
@@ -74,6 +89,23 @@ export default function NewActivityScreen() {
     })();
   }, [editId]);
 
+  function toggleCategory(category: ActivityCategory) {
+    setCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    );
+  }
+
+  function addEquipmentItem() {
+    const trimmed = equipmentDraft.trim();
+    if (!trimmed) return;
+    setEquipmentItems((prev) => [...prev, trimmed]);
+    setEquipmentDraft('');
+  }
+
+  function removeEquipmentItem(index: number) {
+    setEquipmentItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit() {
     if (!name.trim() || !description.trim()) {
       setError('שם ותיאור הם שדות חובה');
@@ -86,14 +118,16 @@ export default function NewActivityScreen() {
         name: name.trim(),
         description: description.trim(),
         activity_type: activityType,
-        age_min: toNumberOrUndefined(ageMin),
-        age_max: toNumberOrUndefined(ageMax),
+        categories,
+        grade_min: gradeMin ?? undefined,
+        grade_max: gradeMax ?? undefined,
         duration_minutes: toNumberOrUndefined(duration),
         group_size_min: toNumberOrUndefined(groupMin),
         group_size_max: toNumberOrUndefined(groupMax),
-        location: location.trim() || undefined,
-        required_equipment: equipment.trim() || undefined,
+        location: location ?? undefined,
+        equipment: equipmentItems,
         budget_estimate: toNumberOrUndefined(budget),
+        contact_phone: contactPhone.trim() || undefined,
         tags: tagsText
           .split(',')
           .map((t) => t.trim())
@@ -137,7 +171,7 @@ export default function NewActivityScreen() {
           />
 
           <ThemedText type="smallBold" style={styles.rtlText}>
-            סוג
+            תפקיד בפעילות
           </ThemedText>
           <View style={styles.chipRow}>
             {ACTIVITY_TYPES.map((t) => (
@@ -152,13 +186,51 @@ export default function NewActivityScreen() {
             ))}
           </View>
 
-          <View style={styles.row}>
-            <View style={styles.field}>
-              <TextField label="גיל מינימלי" value={ageMin} onChangeText={setAgeMin} keyboardType="numeric" />
-            </View>
-            <View style={styles.field}>
-              <TextField label="גיל מקסימלי" value={ageMax} onChangeText={setAgeMax} keyboardType="numeric" />
-            </View>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            קטגוריית תוכן (ניתן לבחור כמה, או בלי סיווג)
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {ACTIVITY_CATEGORIES.map((category) => (
+              <Button
+                key={category}
+                label={ACTIVITY_CATEGORY_LABELS[category]}
+                size="small"
+                fullWidth={false}
+                variant={categories.includes(category) ? 'primary' : 'ghost'}
+                onPress={() => toggleCategory(category)}
+              />
+            ))}
+          </View>
+
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            משכבה (לא חובה)
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {GRADE_LEVELS.map((g) => (
+              <Button
+                key={g}
+                label={GRADE_LABELS[g]}
+                size="small"
+                fullWidth={false}
+                variant={gradeMin === g ? 'primary' : 'ghost'}
+                onPress={() => setGradeMin(gradeMin === g ? null : g)}
+              />
+            ))}
+          </View>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            עד שכבה (לא חובה)
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {GRADE_LEVELS.map((g) => (
+              <Button
+                key={g}
+                label={GRADE_LABELS[g]}
+                size="small"
+                fullWidth={false}
+                variant={gradeMax === g ? 'primary' : 'ghost'}
+                onPress={() => setGradeMax(gradeMax === g ? null : g)}
+              />
+            ))}
           </View>
 
           <View style={styles.row}>
@@ -181,8 +253,48 @@ export default function NewActivityScreen() {
           </View>
 
           <TextField label="משך (דקות)" value={duration} onChangeText={setDuration} keyboardType="numeric" />
-          <TextField label="מיקום" placeholder="בחוץ / באולם / בכיתה" value={location} onChangeText={setLocation} />
-          <TextField label="ציוד נדרש" value={equipment} onChangeText={setEquipment} multiline style={styles.multiline} />
+
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            מיקום
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {ACTIVITY_LOCATIONS.map((loc) => (
+              <Button
+                key={loc}
+                label={ACTIVITY_LOCATION_LABELS[loc]}
+                size="small"
+                fullWidth={false}
+                variant={location === loc ? 'primary' : 'ghost'}
+                onPress={() => setLocation(location === loc ? null : loc)}
+              />
+            ))}
+          </View>
+
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            ציוד נדרש (אופציונלי — אפשר להשאיר ריק אם אין צורך בציוד)
+          </ThemedText>
+          {equipmentItems.length > 0 && (
+            <View style={styles.equipmentList}>
+              {equipmentItems.map((item, index) => (
+                <View key={`${item}-${index}`} style={styles.equipmentRow}>
+                  <ThemedText style={styles.rtlText}>{item}</ThemedText>
+                  <IconButton glyph="×" accessibilityLabel="הסר פריט ציוד" onPress={() => removeEquipmentItem(index)} />
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={styles.row}>
+            <View style={styles.field}>
+              <TextField
+                placeholder="למשל: חבל, טבעות"
+                value={equipmentDraft}
+                onChangeText={setEquipmentDraft}
+                onSubmitEditing={addEquipmentItem}
+              />
+            </View>
+            <Button label="הוסף" variant="secondary" fullWidth={false} onPress={addEquipmentItem} />
+          </View>
+
           <TextField
             label="תקציב משוער לחניך (₪)"
             value={budget}
@@ -194,6 +306,13 @@ export default function NewActivityScreen() {
             placeholder="חנוכה, קיץ, ספורט"
             value={tagsText}
             onChangeText={setTagsText}
+          />
+          <TextField
+            label="טלפון ליצירת קשר (אופציונלי — למשל מעביר סדנה חיצוני)"
+            placeholder="050-1234567"
+            value={contactPhone}
+            onChangeText={setContactPhone}
+            keyboardType="phone-pad"
           />
 
           <ThemedText type="smallBold" style={styles.rtlText}>
@@ -245,8 +364,18 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row-reverse',
     gap: Spacing.two,
+    alignItems: 'flex-end',
   },
   field: {
     flex: 1,
+  },
+  equipmentList: {
+    gap: Spacing.one,
+  },
+  equipmentRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
 });
