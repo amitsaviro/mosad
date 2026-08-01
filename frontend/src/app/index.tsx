@@ -1,11 +1,15 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { assignCounselor, createLayer, joinLayer, listLayers } from '@/api/layers';
 import { listInstitutionUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthContext';
+import { Badge } from '@/components/badge';
+import { Button } from '@/components/button';
+import { Card } from '@/components/card';
+import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -90,187 +94,158 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.rtlText}>
-          שלום, {user?.full_name}
-        </ThemedText>
-        {user?.institution_name && (
-          <ThemedText type="subtitle" style={styles.rtlText}>
-            {user.institution_name}
-          </ThemedText>
-        )}
-        <ThemedText type="small" style={styles.rtlText}>
-          {isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
-        </ThemedText>
-        <Pressable onPress={logout}>
-          <ThemedText type="link">התנתקות</ThemedText>
-        </Pressable>
-      </ThemedView>
-
-      {error && <ThemedText style={[styles.error, styles.rtlText]}>{error}</ThemedText>}
-
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle" style={styles.rtlText}>
-          {isAdmin ? 'צור שכבה חדשה' : 'צור קבוצת הדרכה משלך'}
-        </ThemedText>
-        {hasNoGroupYet && (
-          <TextInput
-            style={styles.input}
-            placeholder="שם מסגרת החינוך (למשל: חינוך בית קמה)"
-            value={newInstitutionName}
-            onChangeText={setNewInstitutionName}
-          />
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder="שם השכבה (למשל: שכבה ז')"
-          value={newLayerName}
-          onChangeText={setNewLayerName}
-        />
-        <Pressable style={styles.button} onPress={handleCreateLayer}>
-          <ThemedText style={styles.buttonText}>צור</ThemedText>
-        </Pressable>
-      </ThemedView>
-
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle" style={styles.rtlText}>
-          הצטרפות בקוד
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="קוד הצטרפות"
-          autoCapitalize="characters"
-          value={joinCode}
-          onChangeText={setJoinCode}
-        />
-        <Pressable style={styles.button} onPress={handleJoinLayer}>
-          <ThemedText style={styles.buttonText}>הצטרף</ThemedText>
-        </Pressable>
-      </ThemedView>
-
-      <ThemedText type="subtitle" style={styles.rtlText}>
-        השכבות {user?.institution_name ? `של ${user.institution_name}` : 'שלי'}
-      </ThemedText>
-      <FlatList
-        data={layers}
-        keyExtractor={(layer) => layer.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <ThemedView type="backgroundElement" style={styles.layerCard}>
-            <ThemedView style={styles.layerTitleRow}>
-              <Link href={`/layer/${item.id}`}>
-                <ThemedText type="linkPrimary" style={styles.rtlText}>
-                  {item.name}
-                </ThemedText>
-              </Link>
-              {!item.can_manage && (
-                <ThemedText type="small" style={styles.viewOnlyBadge}>
-                  צפייה בלבד
-                </ThemedText>
-              )}
-            </ThemedView>
-            <ThemedText type="small" style={styles.rtlText}>
-              קוד הצטרפות: {item.join_code}
+    <ThemedView style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <View style={styles.headerTextBlock}>
+            <ThemedText type="title" style={styles.rtlText}>
+              שלום, {user?.full_name}
             </ThemedText>
-
-            {isAdmin && item.can_manage && (
-              <ThemedView style={styles.assignRow}>
-                <TextInput
-                  style={[styles.input, styles.assignInput]}
-                  placeholder="אימייל מדריך לשיוך"
-                  autoCapitalize="none"
-                  value={assignEmailByLayer[item.id] ?? ''}
-                  onChangeText={(text) =>
-                    setAssignEmailByLayer((prev) => ({ ...prev, [item.id]: text }))
-                  }
-                />
-                <Pressable style={styles.smallButton} onPress={() => handleAssign(item.id)}>
-                  <ThemedText style={styles.buttonText}>שייך</ThemedText>
-                </Pressable>
-              </ThemedView>
+            {user?.institution_name && (
+              <ThemedText type="subtitle" themeColor="primary" style={styles.rtlText}>
+                {user.institution_name}
+              </ThemedText>
             )}
-          </ThemedView>
-        )}
-        ListEmptyComponent={
-          <ThemedText type="small" style={styles.rtlText}>
+            <Badge
+              label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
+              tone={isAdmin ? 'primary' : 'neutral'}
+            />
+          </View>
+          <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
+        </View>
+
+        {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+        <Card>
+          <ThemedText type="subtitle" style={styles.rtlText}>
+            {isAdmin ? 'צור שכבה חדשה' : 'צור קבוצת הדרכה משלך'}
+          </ThemedText>
+          {hasNoGroupYet && (
+            <TextField
+              label="שם מסגרת החינוך"
+              placeholder="למשל: חינוך בית קמה"
+              value={newInstitutionName}
+              onChangeText={setNewInstitutionName}
+            />
+          )}
+          <TextField
+            label="שם השכבה"
+            placeholder="למשל: שכבה ז'"
+            value={newLayerName}
+            onChangeText={setNewLayerName}
+          />
+          <Button label="צור" onPress={handleCreateLayer} />
+        </Card>
+
+        <Card>
+          <ThemedText type="subtitle" style={styles.rtlText}>
+            הצטרפות בקוד
+          </ThemedText>
+          <TextField
+            label="קוד הצטרפות"
+            placeholder="XXXXXX"
+            autoCapitalize="characters"
+            value={joinCode}
+            onChangeText={setJoinCode}
+          />
+          <Button label="הצטרף" onPress={handleJoinLayer} variant="secondary" />
+        </Card>
+
+        <ThemedText type="subtitle" style={styles.rtlText}>
+          השכבות {user?.institution_name ? `של ${user.institution_name}` : 'שלי'}
+        </ThemedText>
+
+        {layers.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
             עדיין אין שכבות. צור אחת למעלה, או הצטרף עם קוד.
           </ThemedText>
-        }
-      />
+        ) : (
+          <View style={styles.list}>
+            {layers.map((item) => (
+              <Card key={item.id} style={styles.layerCard}>
+                <View style={styles.layerTitleRow}>
+                  {!item.can_manage && <Badge label="צפייה בלבד" />}
+                  <Link href={`/layer/${item.id}`}>
+                    <ThemedText type="linkPrimary" style={styles.rtlText}>
+                      {item.name}
+                    </ThemedText>
+                  </Link>
+                </View>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                  קוד הצטרפות: {item.join_code}
+                </ThemedText>
+
+                {isAdmin && item.can_manage && (
+                  <View style={styles.assignRow}>
+                    <View style={styles.assignInput}>
+                      <TextField
+                        placeholder="אימייל מדריך לשיוך"
+                        autoCapitalize="none"
+                        value={assignEmailByLayer[item.id] ?? ''}
+                        onChangeText={(text) =>
+                          setAssignEmailByLayer((prev) => ({ ...prev, [item.id]: text }))
+                        }
+                      />
+                    </View>
+                    <Button
+                      label="שייך"
+                      onPress={() => handleAssign(item.id)}
+                      variant="secondary"
+                      fullWidth={false}
+                    />
+                  </View>
+                )}
+              </Card>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
+  },
+  scrollContent: {
     padding: Spacing.four,
-    gap: Spacing.three,
+    gap: Spacing.four,
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
-    gap: Spacing.one,
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: Spacing.three,
+  },
+  headerTextBlock: {
+    gap: Spacing.two,
+    flex: 1,
   },
   rtlText: {
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-  card: {
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: 12,
-    backgroundColor: '#F0F0F3',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: Spacing.two,
-    fontSize: 16,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  button: {
-    backgroundColor: '#3c87f7',
-    borderRadius: 8,
-    padding: Spacing.two,
-    alignItems: 'center',
-  },
-  smallButton: {
-    backgroundColor: '#3c87f7',
-    borderRadius: 8,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    justifyContent: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  error: {
-    color: '#d33',
-  },
   list: {
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
   layerCard: {
-    padding: Spacing.three,
-    borderRadius: 12,
     gap: Spacing.one,
   },
   layerTitleRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: Spacing.two,
-  },
-  viewOnlyBadge: {
-    color: '#888',
-    fontStyle: 'italic',
+    justifyContent: 'flex-end',
   },
   assignRow: {
     flexDirection: 'row-reverse',
     gap: Spacing.two,
-    marginTop: Spacing.one,
+    marginTop: Spacing.two,
+    alignItems: 'flex-end',
   },
   assignInput: {
     flex: 1,

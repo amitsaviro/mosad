@@ -1,9 +1,12 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { Button } from '@/components/button';
+import { Card } from '@/components/card';
+import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -30,56 +33,65 @@ export default function RegisterScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.rtlText}>
-        הרשמה
-      </ThemedText>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.select({ ios: 'padding', default: undefined })}
+    >
+      <ThemedView style={styles.flex}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ThemedText type="title" style={styles.rtlText}>
+            הרשמה
+          </ThemedText>
 
-      <TextInput style={styles.input} placeholder="שם מלא" value={fullName} onChangeText={setFullName} />
-      <TextInput
-        style={styles.input}
-        placeholder="אימייל"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="סיסמה (לפחות 8 תווים)"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+          <Card style={styles.card}>
+            <TextField label="שם מלא" placeholder="ישראל ישראלי" value={fullName} onChangeText={setFullName} />
+            <TextField
+              label="אימייל"
+              placeholder="you@example.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextField
+              label="סיסמה"
+              placeholder="לפחות 8 תווים"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
 
-      {error && (
-        <ThemedText style={[styles.error, styles.rtlText]}>{error}</ThemedText>
-      )}
+            {error && (
+              <ThemedText themeColor="danger" style={styles.rtlText}>
+                {error}
+              </ThemedText>
+            )}
 
-      <Pressable style={styles.button} onPress={handleSubmit} disabled={isSubmitting}>
-        {isSubmitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <ThemedText style={styles.buttonText}>הרשמה</ThemedText>
-        )}
-      </Pressable>
+            <Button label="הרשמה" onPress={handleSubmit} loading={isSubmitting} />
+          </Card>
 
-      <Link href="/login" style={styles.link}>
-        <ThemedText type="link" style={styles.rtlText}>
-          כבר יש לך חשבון? התחברות
-        </ThemedText>
-      </Link>
-    </ThemedView>
+          <Link href="/login" style={styles.link}>
+            <ThemedText type="linkPrimary">כבר יש לך חשבון? התחברות</ThemedText>
+          </Link>
+        </ScrollView>
+      </ThemedView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: Spacing.four,
-    gap: Spacing.three,
-    maxWidth: 400,
+    gap: Spacing.four,
+    maxWidth: 420,
     width: '100%',
     alignSelf: 'center',
   },
@@ -87,30 +99,10 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: Spacing.three,
-    fontSize: 16,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  button: {
-    backgroundColor: '#3c87f7',
-    borderRadius: 8,
-    padding: Spacing.three,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  error: {
-    color: '#d33',
+  card: {
+    gap: Spacing.three,
   },
   link: {
     alignSelf: 'center',
-    marginTop: Spacing.two,
   },
 });

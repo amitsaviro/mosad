@@ -1,10 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { getLayer } from '@/api/layers';
 import { createParticipant, listParticipants, updateParticipant } from '@/api/participants';
+import { Badge } from '@/components/badge';
+import { Button } from '@/components/button';
+import { Card } from '@/components/card';
+import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -57,108 +61,88 @@ export default function LayerDetailScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.rtlText}>
-        {layer?.name ?? '...'}
-      </ThemedText>
-      {layer?.description && (
-        <ThemedText type="small" style={styles.rtlText}>
-          {layer.description}
-        </ThemedText>
-      )}
-      {layer && (
-        <ThemedText type="small" style={styles.rtlText}>
-          קוד הצטרפות: {layer.join_code}
-        </ThemedText>
-      )}
-      {layer && !layer.can_manage && (
-        <ThemedText type="small" style={[styles.rtlText, styles.viewOnlyBadge]}>
-          צפייה בלבד — אינך משוייך לשכבה זו
-        </ThemedText>
-      )}
-
-      {error && <ThemedText style={[styles.error, styles.rtlText]}>{error}</ThemedText>}
-
-      {layer?.can_manage && (
-        <ThemedView style={styles.card}>
-          <ThemedText type="subtitle" style={styles.rtlText}>
-            הוספת חניך
+    <ThemedView style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerBlock}>
+          <ThemedText type="title" style={styles.rtlText}>
+            {layer?.name ?? '...'}
           </ThemedText>
-          <TextInput style={styles.input} placeholder="שם החניך" value={newName} onChangeText={setNewName} />
-          <Pressable style={styles.button} onPress={handleAddParticipant}>
-            <ThemedText style={styles.buttonText}>הוסף</ThemedText>
-          </Pressable>
-        </ThemedView>
-      )}
-
-      <ThemedText type="subtitle" style={styles.rtlText}>
-        רשימת חניכים ({participants.length})
-      </ThemedText>
-      <FlatList
-        data={participants}
-        keyExtractor={(p) => p.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <ThemedView type="backgroundElement" style={styles.row}>
-            <ThemedText
-              style={[styles.rtlText, !item.is_active && styles.inactiveText]}
-            >
-              {item.full_name}
+          {layer?.description && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              {layer.description}
             </ThemedText>
-            {layer?.can_manage && (
-              <Pressable onPress={() => handleToggleActive(item)}>
-                <ThemedText type="link">{item.is_active ? 'השבת' : 'הפעל'}</ThemedText>
-              </Pressable>
-            )}
-          </ThemedView>
+          )}
+          {layer && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              קוד הצטרפות: {layer.join_code}
+            </ThemedText>
+          )}
+          {layer && !layer.can_manage && <Badge label="צפייה בלבד — אינך משוייך לשכבה זו" />}
+        </View>
+
+        {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+        {layer?.can_manage && (
+          <Card>
+            <ThemedText type="subtitle" style={styles.rtlText}>
+              הוספת חניך
+            </ThemedText>
+            <TextField label="שם החניך" placeholder="ישראל ישראלי" value={newName} onChangeText={setNewName} />
+            <Button label="הוסף" onPress={handleAddParticipant} />
+          </Card>
         )}
-        ListEmptyComponent={
-          <ThemedText type="small" style={styles.rtlText}>
+
+        <ThemedText type="subtitle" style={styles.rtlText}>
+          רשימת חניכים ({participants.length})
+        </ThemedText>
+
+        {participants.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
             אין עדיין חניכים בשכבה הזו.
           </ThemedText>
-        }
-      />
+        ) : (
+          <View style={styles.list}>
+            {participants.map((item) => (
+              <Card key={item.id} style={styles.row}>
+                <ThemedText
+                  style={[styles.rtlText, !item.is_active && styles.inactiveText]}
+                >
+                  {item.full_name}
+                </ThemedText>
+                {layer?.can_manage && (
+                  <Button
+                    label={item.is_active ? 'השבת' : 'הפעל'}
+                    onPress={() => handleToggleActive(item)}
+                    variant={item.is_active ? 'ghost' : 'secondary'}
+                    fullWidth={false}
+                  />
+                )}
+              </Card>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
+  },
+  scrollContent: {
     padding: Spacing.four,
-    gap: Spacing.three,
+    gap: Spacing.four,
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  headerBlock: {
+    gap: Spacing.two,
   },
   rtlText: {
     textAlign: 'right',
     writingDirection: 'rtl',
-  },
-  card: {
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: 12,
-    backgroundColor: '#F0F0F3',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: Spacing.two,
-    fontSize: 16,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  button: {
-    backgroundColor: '#3c87f7',
-    borderRadius: 8,
-    padding: Spacing.two,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  error: {
-    color: '#d33',
   },
   list: {
     gap: Spacing.two,
@@ -167,15 +151,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.three,
-    borderRadius: 12,
   },
   inactiveText: {
     textDecorationLine: 'line-through',
     opacity: 0.5,
-  },
-  viewOnlyBadge: {
-    color: '#888',
-    fontStyle: 'italic',
   },
 });
