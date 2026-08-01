@@ -192,17 +192,47 @@ def test_filter_by_location(client):
     assert names == {"בחוץ"}
 
 
-def test_filter_by_grade_range(client):
+def test_filter_by_grade_point(client):
     token, _ = _register(client, "gradeuser@test.com")
     _create_activity(client, token, name="לשכבות ג-ד", grade_min=3, grade_max=4)
     _create_activity(client, token, name="לכל השכבות")  # no grade restriction
     _create_activity(client, token, name="לשכבות ט-יב", grade_min=9, grade_max=12)
 
-    response = client.get("/api/v1/activities?grade=4", headers=_auth_headers(token))
+    response = client.get("/api/v1/activities?grade_min=4&grade_max=4", headers=_auth_headers(token))
 
     assert response.status_code == 200
     names = {a["name"] for a in response.json()["items"]}
     assert names == {"לשכבות ג-ד", "לכל השכבות"}
+
+
+def test_filter_by_grade_range_overlap(client):
+    token, _ = _register(client, "gradeoverlapuser@test.com")
+    _create_activity(client, token, name="לשכבות ג-ד", grade_min=3, grade_max=4)
+    _create_activity(client, token, name="לכל השכבות")  # no grade restriction
+    _create_activity(client, token, name="לשכבות ט-יב", grade_min=9, grade_max=12)
+    _create_activity(client, token, name="לשכבות ה-ז", grade_min=5, grade_max=7)
+
+    # Filtering for "ט-יב" should match activities whose OWN range
+    # overlaps that window at all, not just an exact match.
+    response = client.get("/api/v1/activities?grade_min=9&grade_max=12", headers=_auth_headers(token))
+
+    assert response.status_code == 200
+    names = {a["name"] for a in response.json()["items"]}
+    assert names == {"לשכבות ט-יב", "לכל השכבות"}
+
+
+def test_filter_by_grade_min_only_is_open_ended(client):
+    token, _ = _register(client, "gradeopenuser@test.com")
+    _create_activity(client, token, name="לשכבות ג-ד", grade_min=3, grade_max=4)
+    _create_activity(client, token, name="לשכבות ט-יב", grade_min=9, grade_max=12)
+    _create_activity(client, token, name="לכל השכבות")
+
+    # "ט ומעלה" -- only grade_min given, so the upper side is unbounded.
+    response = client.get("/api/v1/activities?grade_min=9", headers=_auth_headers(token))
+
+    assert response.status_code == 200
+    names = {a["name"] for a in response.json()["items"]}
+    assert names == {"לשכבות ט-יב", "לכל השכבות"}
 
 
 def test_grade_max_below_min_is_rejected(client):

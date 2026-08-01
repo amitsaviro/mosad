@@ -37,7 +37,8 @@ export default function ActivitiesScreen() {
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [location, setLocation] = useState<ActivityLocation | null>(null);
-  const [grade, setGrade] = useState<number | null>(null);
+  const [gradeMin, setGradeMin] = useState<number | null>(null);
+  const [gradeMax, setGradeMax] = useState<number | null>(null);
   const [groupSize, setGroupSize] = useState('');
   const [tag, setTag] = useState('');
 
@@ -52,7 +53,8 @@ export default function ActivitiesScreen() {
         activity_type: activityType ?? undefined,
         categories: categories.length > 0 ? categories : undefined,
         location: location ?? undefined,
-        grade: grade ?? undefined,
+        grade_min: gradeMin ?? undefined,
+        grade_max: gradeMax ?? undefined,
         group_size: groupSize.trim() ? Number(groupSize.trim()) : undefined,
         tag: tag.trim() || undefined,
         page: targetPage,
@@ -175,15 +177,15 @@ export default function ActivitiesScreen() {
           </View>
 
           <ThemedText type="smallBold" style={styles.rtlText}>
-            שכבה
+            משכבה (טווח — ניתן להשאיר צד אחד פתוח)
           </ThemedText>
           <View style={styles.chipRow}>
             <Button
               label="הכל"
               size="small"
               fullWidth={false}
-              variant={grade === null ? 'primary' : 'ghost'}
-              onPress={() => setGrade(null)}
+              variant={gradeMin === null ? 'primary' : 'ghost'}
+              onPress={() => setGradeMin(null)}
             />
             {GRADE_LEVELS.map((g) => (
               <Button
@@ -191,8 +193,30 @@ export default function ActivitiesScreen() {
                 label={GRADE_LABELS[g]}
                 size="small"
                 fullWidth={false}
-                variant={grade === g ? 'primary' : 'ghost'}
-                onPress={() => setGrade(g)}
+                variant={gradeMin === g ? 'primary' : 'ghost'}
+                onPress={() => setGradeMin(g)}
+              />
+            ))}
+          </View>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            עד שכבה
+          </ThemedText>
+          <View style={styles.chipRow}>
+            <Button
+              label="הכל"
+              size="small"
+              fullWidth={false}
+              variant={gradeMax === null ? 'primary' : 'ghost'}
+              onPress={() => setGradeMax(null)}
+            />
+            {GRADE_LEVELS.map((g) => (
+              <Button
+                key={g}
+                label={GRADE_LABELS[g]}
+                size="small"
+                fullWidth={false}
+                variant={gradeMax === g ? 'primary' : 'ghost'}
+                onPress={() => setGradeMax(g)}
               />
             ))}
           </View>

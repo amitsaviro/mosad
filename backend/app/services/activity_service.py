@@ -58,7 +58,8 @@ def list_activities(
     tag: str | None = None,
     categories: list[str] | None = None,
     location: str | None = None,
-    grade: int | None = None,
+    grade_min: int | None = None,
+    grade_max: int | None = None,
     group_size: int | None = None,
     max_duration: int | None = None,
     page: int = 1,
@@ -80,11 +81,16 @@ def list_activities(
         query = query.filter(or_(*[Activity.categories.any(c) for c in categories]))
     if location:
         query = query.filter(Activity.location == location)
-    if grade is not None:
-        query = query.filter(
-            or_(Activity.grade_min.is_(None), Activity.grade_min <= grade),
-            or_(Activity.grade_max.is_(None), Activity.grade_max >= grade),
-        )
+    if grade_min is not None or grade_max is not None:
+        # Range-overlap, not a single point: a counselor filtering for
+        # "ט-יב" wants any activity whose own grade range touches that
+        # window at all, not just activities pinned to one exact grade.
+        # A one-sided filter (only grade_min, or only grade_max) treats
+        # the open side as unbounded ("ט ומעלה" / "עד יב").
+        if grade_max is not None:
+            query = query.filter(or_(Activity.grade_min.is_(None), Activity.grade_min <= grade_max))
+        if grade_min is not None:
+            query = query.filter(or_(Activity.grade_max.is_(None), Activity.grade_max >= grade_min))
     if group_size is not None:
         query = query.filter(
             or_(Activity.group_size_min.is_(None), Activity.group_size_min <= group_size),

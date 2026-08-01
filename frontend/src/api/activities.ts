@@ -16,7 +16,8 @@ export type ActivityFilters = {
   tag?: string;
   categories?: ActivityCategory[];
   location?: ActivityLocation;
-  grade?: number;
+  grade_min?: number;
+  grade_max?: number;
   group_size?: number;
   max_duration?: number;
   page?: number;
