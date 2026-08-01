@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, institutions, layers, participants, users
+from app.routers import activities, auth, institutions, layers, participants, users
 
 app = FastAPI(title="Mosad API")
 
@@ -21,6 +21,7 @@ app.add_middleware(
 # Every route inside auth.router/layers.router gets "/api/v1" stuck in
 # front of its own prefix, e.g. "/auth/login" -> "/api/v1/auth/login".
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(activities.router, prefix="/api/v1")
 app.include_router(institutions.router, prefix="/api/v1")
 app.include_router(layers.router, prefix="/api/v1")
 app.include_router(participants.router, prefix="/api/v1")

@@ -2,6 +2,10 @@
 # model file below. This matters for Alembic: it only "sees" a table
 # if the model class has actually been imported somewhere before
 # autogenerate runs.
+from app.models.activity import Activity, ActivityType
+from app.models.activity_attachment import ActivityAttachment
+from app.models.activity_comment import ActivityComment
+from app.models.activity_rating import ActivityRating
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.institution import Institution
 from app.models.layer import Layer
@@ -15,4 +19,9 @@ __all__ = [
     "Layer",
     "CounselorLayerAssignment",
     "Participant",
+    "Activity",
+    "ActivityType",
+    "ActivityAttachment",
+    "ActivityRating",
+    "ActivityComment",
 ]
