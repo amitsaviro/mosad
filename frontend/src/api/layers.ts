@@ -1,5 +1,5 @@
 import { api } from '@/api/client';
-import { Layer } from '@/types';
+import { Layer, User } from '@/types';
 
 export function listLayers() {
   return api.get<Layer[]>('/layers');
@@ -9,12 +9,24 @@ export function getLayer(layerId: string) {
   return api.get<Layer>(`/layers/${layerId}`);
 }
 
-export function createLayer(name: string, description?: string, institutionName?: string) {
-  return api.post<Layer>('/layers', {
-    name,
-    description,
-    institution_name: institutionName,
-  });
+export function createLayer(name: string, description?: string) {
+  return api.post<Layer>('/layers', { name, description });
+}
+
+export function updateLayer(layerId: string, changes: { name?: string; description?: string }) {
+  return api.patch<Layer>(`/layers/${layerId}`, changes);
+}
+
+export function deleteLayer(layerId: string) {
+  return api.delete<void>(`/layers/${layerId}`);
+}
+
+export function leaveLayer(layerId: string) {
+  return api.post<void>(`/layers/${layerId}/leave`);
+}
+
+export function listLayerCounselors(layerId: string) {
+  return api.get<User[]>(`/layers/${layerId}/counselors`);
 }
 
 export function joinLayer(joinCode: string) {

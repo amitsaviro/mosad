@@ -113,7 +113,17 @@ def leave_layer(db: Session, user: User, layer: Layer) -> None:
     """A counselor removing themselves from a layer they no longer
     want to be assigned to. They keep read-only visibility into it
     afterward (same-institution view access is separate from
-    assignment) — this only affects can_manage/is_assigned."""
+    assignment) — this only affects can_manage/is_assigned.
+
+    Admins can't use this — they manage every layer in their
+    institution by role, not by assignment, so "leaving" one wouldn't
+    mean anything; deleting the layer is the admin equivalent."""
+    if user.role == UserRole.institution_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="מנהל לא יכול לעזוב שכבה, ניתן למחוק אותה",
+        )
+
     assignment = (
         db.query(CounselorLayerAssignment)
         .filter(

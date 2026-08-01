@@ -354,6 +354,14 @@ def test_leaving_a_layer_youre_not_in_returns_404(client):
     assert response.status_code == 404
 
 
+def test_admin_cannot_leave_their_own_layer(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "admin_leave3@test.com")
+
+    response = client.post(f"/api/v1/layers/{layer['id']}/leave", headers=_auth_headers(admin_token))
+
+    assert response.status_code == 400
+
+
 def test_list_layer_counselors(client):
     admin_token, admin_user, layer = _make_admin_with_layer(client, "admin_list_c@test.com")
     counselor_token, counselor_user = _register(client, "counselor_list_c@test.com")

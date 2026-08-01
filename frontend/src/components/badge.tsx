@@ -22,6 +22,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    alignSelf: 'flex-start',
+    // 'flex-end' = right edge in this app's visual-RTL convention
+    // (row-reverse + right-aligned text, rather than true OS-level
+    // RTL) — lines the badge's right edge up with the RTL text above it.
+    alignSelf: 'flex-end',
   },
 });

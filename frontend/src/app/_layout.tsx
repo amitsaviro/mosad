@@ -42,6 +42,7 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
       <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
       <Stack.Screen name="layer/[id]" options={{ title: 'שכבה' }} />
+      <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
     </Stack>
   );
 }

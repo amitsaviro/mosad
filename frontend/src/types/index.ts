@@ -26,6 +26,7 @@ export type Layer = {
   join_code: string;
   is_active: boolean;
   can_manage: boolean;
+  is_assigned: boolean;
 };
 
 export type Participant = {

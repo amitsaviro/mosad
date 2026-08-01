@@ -7,11 +7,13 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useTheme } from '@/hooks/use-theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type ButtonSize = 'medium' | 'small';
 
 export type ButtonProps = {
   label: string;
   onPress: () => void;
   variant?: ButtonVariant;
+  size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
@@ -21,6 +23,7 @@ export function Button({
   label,
   onPress,
   variant = 'primary',
+  size = 'medium',
   disabled = false,
   loading = false,
   fullWidth = true,
@@ -34,6 +37,7 @@ export function Button({
     secondary: { bg: 'transparent', pressedBg: theme.backgroundSelected, text: theme.primary, border: theme.primary },
     ghost: { bg: 'transparent', pressedBg: theme.backgroundSelected, text: theme.text, border: theme.border },
   }[variant];
+  const sizing = size === 'small' ? styles.baseSmall : styles.baseMedium;
 
   return (
     <Pressable
@@ -53,6 +57,7 @@ export function Button({
         const hovered = 'hovered' in state ? Boolean((state as { hovered?: boolean }).hovered) : false;
         return [
           styles.base,
+          sizing,
           {
             backgroundColor: pressed ? palette.pressedBg : palette.bg,
             borderColor: palette.border,
@@ -74,7 +79,9 @@ export function Button({
         <ActivityIndicator color={palette.text} />
       ) : (
         <View style={styles.contentRow}>
-          <Text style={[styles.label, { color: palette.text }]}>{label}</Text>
+          <Text style={[styles.label, size === 'small' && styles.labelSmall, { color: palette.text }]}>
+            {label}
+          </Text>
         </View>
       )}
     </Pressable>
@@ -83,11 +90,18 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 50,
     borderRadius: 14,
-    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  baseMedium: {
+    minHeight: 50,
+    paddingHorizontal: 20,
+  },
+  baseSmall: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
   contentRow: {
     flexDirection: 'row',
@@ -98,5 +112,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  labelSmall: {
+    fontSize: 13,
   },
 });
