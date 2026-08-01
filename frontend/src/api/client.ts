@@ -30,7 +30,20 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  } catch {
+    // fetch() itself throws when the server can't be reached at all
+    // (wrong host/IP, server down, phone not on the same network) —
+    // that's a different failure than the server responding with an
+    // error status, so it gets its own clear message instead of falling
+    // through to a generic "something failed" in every screen.
+    throw new ApiError(
+      0,
+      `לא ניתן להתחבר לשרת בכתובת ${BASE_URL}. ודא שהשרת פועל ושהמכשיר מחובר לאותה רשת.`
+    );
+  }
 
   if (!response.ok) {
     // FastAPI's default error shape is {"detail": "..."}.
