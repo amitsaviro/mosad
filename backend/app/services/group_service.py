@@ -30,7 +30,7 @@ def _generate_join_code(db: Session, length: int = 6) -> str:
             return code
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Could not generate a unique join code, please retry",
+        detail="לא ניתן היה ליצור קוד הצטרפות ייחודי, נסה שוב",
     )
 
 
@@ -44,7 +44,7 @@ def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
     if user.institution_id is not None and user.role != UserRole.institution_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only an institution admin can create additional layers",
+            detail="רק מנהל מוסד יכול ליצור שכבות נוספות",
         )
 
     if user.institution_id is None:
@@ -53,7 +53,7 @@ def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
         if not institution_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="institution_name is required when creating your first group",
+                detail="יש להזין שם למסגרת החינוך ביצירת הקבוצה הראשונה",
             )
         institution = Institution(name=institution_name, slug=str(user.id))
         db.add(institution)
@@ -77,7 +77,7 @@ def create_layer(db: Session, user: User, payload: LayerCreate) -> Layer:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A layer with this name already exists in your institution",
+            detail="כבר קיימת שכבה בשם הזה במוסד שלך",
         )
 
     # The creator is also counted as a counselor on their own layer,
@@ -93,7 +93,7 @@ def join_layer(db: Session, user: User, join_code: str) -> Layer:
     layer = db.query(Layer).filter(Layer.join_code == join_code).first()
     if layer is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invalid join code"
+            status_code=status.HTTP_404_NOT_FOUND, detail="קוד ההצטרפות לא תקין"
         )
 
     # A user can only ever belong to ONE institution (kept simple for now).
@@ -101,7 +101,7 @@ def join_layer(db: Session, user: User, join_code: str) -> Layer:
     if user.institution_id is not None and user.institution_id != layer.institution_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You already belong to a different institution",
+            detail="אתה כבר משוייך למוסד אחר",
         )
 
     if user.institution_id is None:

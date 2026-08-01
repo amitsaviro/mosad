@@ -74,14 +74,14 @@ def assign_counselor(db: Session, admin: User, layer: Layer, counselor_user_id: 
     # again here means this function is safe to call from anywhere.
     if layer.institution_id != admin.institution_id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="השכבה לא נמצאה"
         )
 
     target_user = db.get(User, counselor_user_id)
     if target_user is None or target_user.institution_id != admin.institution_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No such user in your institution",
+            detail="לא נמצא משתמש כזה במוסד שלך",
         )
 
     existing = (
@@ -102,7 +102,7 @@ def assign_counselor(db: Session, admin: User, layer: Layer, counselor_user_id: 
 def unassign_counselor(db: Session, admin: User, layer: Layer, counselor_user_id: uuid.UUID) -> None:
     if layer.institution_id != admin.institution_id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="השכבה לא נמצאה"
         )
 
     assignment = (
@@ -115,7 +115,7 @@ def unassign_counselor(db: Session, admin: User, layer: Layer, counselor_user_id
     )
     if assignment is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="השיוך לא נמצא"
         )
     db.delete(assignment)
     db.commit()

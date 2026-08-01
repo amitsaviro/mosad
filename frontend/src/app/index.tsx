@@ -98,18 +98,20 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View style={styles.headerTextBlock}>
-            <ThemedText type="title" style={styles.rtlText}>
-              שלום, {user?.full_name}
-            </ThemedText>
+            <View style={styles.greetingRow}>
+              <ThemedText type="title" style={styles.rtlText}>
+                שלום, {user?.full_name}
+              </ThemedText>
+              <Badge
+                label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
+                tone={isAdmin ? 'primary' : 'neutral'}
+              />
+            </View>
             {user?.institution_name && (
               <ThemedText type="subtitle" themeColor="primary" style={styles.rtlText}>
                 {user.institution_name}
               </ThemedText>
             )}
-            <Badge
-              label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
-              tone={isAdmin ? 'primary' : 'neutral'}
-            />
           </View>
           <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
         </View>
@@ -123,7 +125,7 @@ export default function DashboardScreen() {
           {hasNoGroupYet && (
             <TextField
               label="שם מסגרת החינוך"
-              placeholder="למשל: חינוך בית קמה"
+              placeholder="חינוך XXXX"
               value={newInstitutionName}
               onChangeText={setNewInstitutionName}
             />
@@ -224,6 +226,12 @@ const styles = StyleSheet.create({
   headerTextBlock: {
     gap: Spacing.two,
     flex: 1,
+  },
+  greetingRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
   },
   rtlText: {
     textAlign: 'right',

@@ -30,7 +30,7 @@ def get_current_user(
     `current_user: User = Depends(get_current_user)` as a parameter."""
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="האימות נכשל, יש להתחבר מחדש",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -55,7 +55,7 @@ def require_institution_admin(current_user: User = Depends(get_current_user)) ->
     if current_user.role != UserRole.institution_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only an institution admin can perform this action",
+            detail="רק מנהל מוסד יכול לבצע פעולה זו",
         )
     return current_user
 
@@ -74,7 +74,7 @@ def get_viewable_layer(
     Returns 404 (not 403) when access is denied — we don't want an
     unauthorized user to even learn that a given layer_id exists."""
     not_found = HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
+        status_code=status.HTTP_404_NOT_FOUND, detail="השכבה לא נמצאה"
     )
     layer = db.get(Layer, layer_id)
     if layer is None or not user_can_view_layer(current_user, layer):
@@ -92,7 +92,7 @@ def get_manageable_layer(
     data (adding participants, assigning counselors) — narrower than
     get_viewable_layer."""
     not_found = HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail="Layer not found"
+        status_code=status.HTTP_404_NOT_FOUND, detail="השכבה לא נמצאה"
     )
     layer = db.get(Layer, layer_id)
     if layer is None or not user_can_manage_layer(db, current_user, layer):
@@ -109,7 +109,7 @@ def get_accessible_participant(
     PATCH /participants/{id}, which edits data) — requires WRITE access
     to the participant's own layer."""
     not_found = HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found"
+        status_code=status.HTTP_404_NOT_FOUND, detail="החניך לא נמצא"
     )
     participant = db.get(Participant, participant_id)
     if participant is None:

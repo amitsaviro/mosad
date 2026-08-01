@@ -17,7 +17,7 @@ class ParticipantCreate(BaseModel):
     def full_name_must_not_be_blank(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
-            raise ValueError("full_name must not be blank")
+            raise ValueError("שם החניך לא יכול להיות ריק")
         return stripped
 
 

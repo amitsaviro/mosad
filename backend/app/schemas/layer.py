@@ -21,7 +21,7 @@ class LayerCreate(BaseModel):
     def name_must_not_be_blank(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
-            raise ValueError("name must not be blank")
+            raise ValueError("שם השכבה לא יכול להיות ריק")
         return stripped
 
 

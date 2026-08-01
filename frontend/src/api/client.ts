@@ -12,6 +12,31 @@ export class ApiError extends Error {
   }
 }
 
+// FastAPI sends errors two different shapes: our own HTTPException(detail="...")
+// calls give a plain string, but Pydantic's own validation errors (422) give
+// an ARRAY of {msg, loc, ...} objects instead. Pydantic also auto-prefixes
+// custom validator messages with "Value error, ". This picks a single
+// readable Hebrew string out of either shape, falling back to a generic
+// Hebrew message rather than ever showing raw English/JSON to the user.
+function extractErrorMessage(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const firstMessage = (detail[0] as { msg?: unknown })?.msg;
+    if (typeof firstMessage === 'string') {
+      const cleaned = firstMessage.replace(/^Value error,\s*/i, '');
+      const containsHebrew = /[֐-׿]/.test(cleaned);
+      return containsHebrew ? cleaned : 'הנתונים שהוזנו אינם תקינים';
+    }
+  }
+
+  return `הבקשה נכשלה (קוד ${status})`;
+}
+
 let authToken: string | null = null;
 
 // AuthContext calls this whenever the token changes (after login,
@@ -46,9 +71,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    // FastAPI's default error shape is {"detail": "..."}.
-    const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body.detail ?? `Request failed (${response.status})`);
+    const body = await response.json().catch(() => null);
+    throw new ApiError(response.status, extractErrorMessage(body, response.status));
   }
 
   if (response.status === 204) {

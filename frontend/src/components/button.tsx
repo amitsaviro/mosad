@@ -46,16 +46,29 @@ export function Button({
       // helps hit the ~44pt minimum touch target guideline even if the
       // visual button ends up smaller on a compact layout.
       hitSlop={8}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: pressed ? palette.pressedBg : palette.bg,
-          borderColor: palette.border,
-          borderWidth: variant === 'secondary' || variant === 'ghost' ? 1.5 : 0,
-          opacity: isDisabled ? 0.5 : 1,
-          alignSelf: fullWidth ? 'stretch' : 'flex-start',
-        },
-      ]}
+      // `hovered` only exists on react-native-web (mouse pointer) — a
+      // no-op on iOS/Android, where there's no such thing as hover.
+      style={(state) => {
+        const { pressed } = state;
+        const hovered = 'hovered' in state ? Boolean((state as { hovered?: boolean }).hovered) : false;
+        return [
+          styles.base,
+          {
+            backgroundColor: pressed ? palette.pressedBg : palette.bg,
+            borderColor: palette.border,
+            borderWidth: variant === 'secondary' || variant === 'ghost' ? 1.5 : 0,
+            opacity: isDisabled ? 0.5 : 1,
+            alignSelf: fullWidth ? 'stretch' : 'flex-start',
+            transform: [{ scale: hovered && !isDisabled ? 1.03 : 1 }],
+            // web-only CSS passthrough — react-native-web forwards these
+            // style keys straight to the DOM node, giving the scale/color
+            // change above a smooth animation instead of an instant jump.
+            transitionProperty: 'transform, background-color',
+            transitionDuration: '150ms',
+            cursor: isDisabled ? 'auto' : 'pointer',
+          },
+        ];
+      }}
     >
       {loading ? (
         <ActivityIndicator color={palette.text} />

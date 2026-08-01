@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
@@ -10,16 +10,23 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function RegisterScreen() {
   const { register } = useAuth();
+  const theme = useTheme();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isPasswordValid = password.length >= MIN_PASSWORD_LENGTH;
+
   async function handleSubmit() {
+    if (!isPasswordValid) return;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -63,6 +70,19 @@ export default function RegisterScreen() {
               value={password}
               onChangeText={setPassword}
             />
+            {password.length > 0 && (
+              <View style={styles.passwordHintRow}>
+                <ThemedText style={{ color: isPasswordValid ? theme.success : theme.danger }}>
+                  {isPasswordValid ? '✓' : '✗'}
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  style={[styles.rtlText, { color: isPasswordValid ? theme.success : theme.danger }]}
+                >
+                  {isPasswordValid ? 'הסיסמה עומדת בדרישת האורך' : `נדרשים לפחות ${MIN_PASSWORD_LENGTH} תווים`}
+                </ThemedText>
+              </View>
+            )}
 
             {error && (
               <ThemedText themeColor="danger" style={styles.rtlText}>
@@ -70,7 +90,12 @@ export default function RegisterScreen() {
               </ThemedText>
             )}
 
-            <Button label="הרשמה" onPress={handleSubmit} loading={isSubmitting} />
+            <Button
+              label="הרשמה"
+              onPress={handleSubmit}
+              loading={isSubmitting}
+              disabled={password.length > 0 && !isPasswordValid}
+            />
           </Card>
 
           <Link href="/login" style={styles.link}>
@@ -101,6 +126,12 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: Spacing.three,
+  },
+  passwordHintRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginTop: -Spacing.two,
   },
   link: {
     alignSelf: 'center',
