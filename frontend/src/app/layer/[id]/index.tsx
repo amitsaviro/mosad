@@ -153,6 +153,13 @@ export default function LayerDetailScreen() {
               fullWidth={false}
               onPress={() => router.push(`/layer/${id}/schedule`)}
             />
+            <Button
+              label="לוח שנה →"
+              variant="secondary"
+              size="small"
+              fullWidth={false}
+              onPress={() => router.push(`/layer/${id}/calendar`)}
+            />
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>

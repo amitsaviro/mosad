@@ -43,6 +43,7 @@ function RootNavigator() {
       <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
       <Stack.Screen name="layer/[id]/index" options={{ title: 'שכבה' }} />
       <Stack.Screen name="layer/[id]/schedule" options={{ title: 'לוח שבועי' }} />
+      <Stack.Screen name="layer/[id]/calendar" options={{ title: 'לוח שנה' }} />
       <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
       <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
       <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />

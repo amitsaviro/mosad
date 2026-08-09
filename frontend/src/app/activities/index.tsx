@@ -25,6 +25,7 @@ import {
 import { DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { Activity, ActivityCategory, ActivityLocation, ActivityType, DayOfWeek } from '@/types';
+import { toIsraeliDate } from '@/utils/calendar';
 
 const PAGE_SIZE = 12;
 
@@ -118,7 +119,7 @@ export default function ActivitiesScreen() {
     try {
       if (isCalendarPicking && pickCalendarDate) {
         await createCalendarActivity(pickForLayerId, { activity_id: activityId, date: pickCalendarDate });
-        router.replace('/year');
+        router.replace(`/layer/${pickForLayerId}/calendar`);
       } else if (isWeeklyPicking && pickDay && pickTime) {
         await createScheduleEntry(pickForLayerId, {
           activity_id: activityId,
@@ -157,7 +158,7 @@ export default function ActivitiesScreen() {
             <ThemedText type="smallBold" style={styles.rtlText}>
               {isWeeklyPicking
                 ? `בחירת פעילות ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)} — לחצו + כדי להוסיף ללוח`
-                : `בחירת פעילות לתאריך ${pickCalendarDate} — לחצו + כדי לשבץ`}
+                : `בחירת פעילות לתאריך ${toIsraeliDate(pickCalendarDate!)} — לחצו + כדי לשבץ`}
             </ThemedText>
             <Button
               label="ביטול, חזרה"
@@ -165,7 +166,9 @@ export default function ActivitiesScreen() {
               size="small"
               fullWidth={false}
               onPress={() =>
-                router.replace(isWeeklyPicking ? `/layer/${pickForLayerId}/schedule` : '/year')
+                router.replace(
+                  isWeeklyPicking ? `/layer/${pickForLayerId}/schedule` : `/layer/${pickForLayerId}/calendar`
+                )
               }
             />
           </Card>

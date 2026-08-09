@@ -23,6 +23,7 @@ import {
 import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { Activity, ActivityComment, ActivityRating, DayOfWeek, Layer } from '@/types';
+import { toIsraeliDate } from '@/utils/calendar';
 
 type PickParams = {
   id: string;
@@ -129,7 +130,7 @@ export default function ActivityDetailScreen() {
     try {
       if (isCalendarPicking && pickCalendarDate) {
         await createCalendarActivity(pickForLayerId, { activity_id: id, date: pickCalendarDate });
-        router.replace('/year');
+        router.replace(`/layer/${pickForLayerId}/calendar`);
       } else if (isWeeklyPicking && pickDay && pickTime) {
         await createScheduleEntry(pickForLayerId, {
           activity_id: id,
@@ -251,7 +252,7 @@ export default function ActivityDetailScreen() {
             <ThemedText type="smallBold" style={styles.rtlText}>
               {isWeeklyPicking
                 ? `שיבוץ ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)}`
-                : `שיבוץ לתאריך ${pickCalendarDate}`}
+                : `שיבוץ לתאריך ${toIsraeliDate(pickCalendarDate!)}`}
             </ThemedText>
             {slotError && <ThemedText themeColor="danger" style={styles.rtlText}>{slotError}</ThemedText>}
             <Button label="+ הוסף למשבצת שנבחרה" onPress={handleAddToPickedSlot} loading={isAddingToSlot} />
