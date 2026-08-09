@@ -11,6 +11,7 @@ import {
   listSchedule,
   updateScheduleEntry,
 } from '@/api/schedule';
+import { ActivityDetailModal } from '@/components/activity-detail-modal';
 import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -68,6 +69,7 @@ export default function LayerScheduleScreen() {
   const [newDescription, setNewDescription] = useState('');
   const [newType, setNewType] = useState<ActivityType>('main');
   const [isSaving, setIsSaving] = useState(false);
+  const [viewActivityId, setViewActivityId] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
@@ -350,9 +352,18 @@ export default function LayerScheduleScreen() {
                             })}
                           </View>
                         )}
-                        {entry.can_manage && (
-                          <ConfirmButton label="הסר מהלוח" onConfirm={() => handleDelete(entry.id)} />
-                        )}
+                        <View style={styles.entryActionsRow}>
+                          <Button
+                            label="👁 פרטים מלאים"
+                            variant="secondary"
+                            size="small"
+                            fullWidth={false}
+                            onPress={() => setViewActivityId(entry.activity_id)}
+                          />
+                          {entry.can_manage && (
+                            <ConfirmButton label="הסר מהלוח" onConfirm={() => handleDelete(entry.id)} />
+                          )}
+                        </View>
                       </Card>
                     ))}
                   </View>
@@ -362,6 +373,7 @@ export default function LayerScheduleScreen() {
           </View>
         ))}
       </ScrollView>
+      <ActivityDetailModal activityId={viewActivityId} onClose={() => setViewActivityId(null)} />
     </ThemedView>
   );
 }
@@ -440,5 +452,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     justifyContent: 'flex-end',
+  },
+  entryActionsRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
   },
 });
