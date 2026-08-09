@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import activities, auth, institutions, layers, participants, users
+from app.routers import activities, auth, institutions, key_dates, layers, participants, schedule, users
 
 app = FastAPI(title="Mosad API")
 
@@ -23,8 +23,10 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(activities.router, prefix="/api/v1")
 app.include_router(institutions.router, prefix="/api/v1")
+app.include_router(key_dates.router, prefix="/api/v1")
 app.include_router(layers.router, prefix="/api/v1")
 app.include_router(participants.router, prefix="/api/v1")
+app.include_router(schedule.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 
 

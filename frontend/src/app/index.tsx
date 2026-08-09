@@ -194,6 +194,12 @@ export default function DashboardScreen() {
               variant="secondary"
               fullWidth={false}
             />
+            <Button
+              label="תצוגת שנה"
+              onPress={() => router.push('/year')}
+              variant="secondary"
+              fullWidth={false}
+            />
             <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
             <Link href="/profile">
               <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>

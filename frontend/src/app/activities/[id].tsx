@@ -5,6 +5,7 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { addComment, addRating, deleteActivity, getActivity, listComments, listRatings } from '@/api/activities';
 import { ApiError } from '@/api/client';
 import { listLayers } from '@/api/layers';
+import { createScheduleEntry } from '@/api/schedule';
 import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -18,12 +19,25 @@ import {
   ACTIVITY_TYPE_LABELS,
   GRADE_LABELS,
 } from '@/constants/activity';
+import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
-import { Activity, ActivityComment, ActivityRating, Layer } from '@/types';
+import { Activity, ActivityComment, ActivityRating, DayOfWeek, Layer } from '@/types';
+
+type PickParams = { id: string; pickForLayerId?: string; pickDay?: DayOfWeek; pickTime?: string };
+
+function toApiTime(text: string): string | null {
+  const match = text.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  const [, hours, minutes] = match;
+  return `${hours.padStart(2, '0')}:${minutes}:00`;
+}
 
 export default function ActivityDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, pickForLayerId, pickDay, pickTime } = useLocalSearchParams<PickParams>();
   const router = useRouter();
+  const isPicking = !!pickForLayerId && !!pickDay && !!pickTime;
+  const [isAddingToSlot, setIsAddingToSlot] = useState(false);
+  const [slotError, setSlotError] = useState<string | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [ratings, setRatings] = useState<ActivityRating[]>([]);
   const [comments, setComments] = useState<ActivityComment[]>([]);
@@ -34,6 +48,13 @@ export default function ActivityDetailScreen() {
   const [selectedRating, setSelectedRating] = useState<number>(5);
   const [ratingNotes, setRatingNotes] = useState('');
   const [commentBody, setCommentBody] = useState('');
+
+  const [scheduleLayerIds, setScheduleLayerIds] = useState<string[]>([]);
+  const [scheduleDay, setScheduleDay] = useState<DayOfWeek>('sunday');
+  const [scheduleTimeText, setScheduleTimeText] = useState('');
+  const [scheduleNotes, setScheduleNotes] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
@@ -92,6 +113,74 @@ export default function ActivityDetailScreen() {
     }
   }
 
+  async function handleAddToPickedSlot() {
+    if (!pickForLayerId || !pickDay || !pickTime) return;
+    setIsAddingToSlot(true);
+    setSlotError(null);
+    try {
+      await createScheduleEntry(pickForLayerId, {
+        activity_id: id,
+        day_of_week: pickDay,
+        start_time: pickTime,
+      });
+      router.replace(`/layer/${pickForLayerId}/schedule`);
+    } catch (err) {
+      setSlotError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
+      setIsAddingToSlot(false);
+    }
+  }
+
+  function toggleScheduleLayer(layerId: string) {
+    setScheduleLayerIds((prev) =>
+      prev.includes(layerId) ? prev.filter((l) => l !== layerId) : [...prev, layerId]
+    );
+  }
+
+  async function handleAddToSchedule() {
+    setScheduleMessage(null);
+    if (scheduleLayerIds.length === 0) {
+      setScheduleMessage('יש לבחור לפחות שכבה אחת');
+      return;
+    }
+    const apiTime = toApiTime(scheduleTimeText);
+    if (!apiTime) {
+      setScheduleMessage('יש להזין שעה בפורמט תקין, למשל 16:00');
+      return;
+    }
+    setIsScheduling(true);
+    const layerNameById = new Map(myLayers.map((l) => [l.id, l.name]));
+    const failures: string[] = [];
+    let successCount = 0;
+    for (const layerId of scheduleLayerIds) {
+      try {
+        await createScheduleEntry(layerId, {
+          activity_id: id,
+          day_of_week: scheduleDay,
+          start_time: apiTime,
+          notes: scheduleNotes.trim() || undefined,
+        });
+        successCount += 1;
+      } catch (err) {
+        const layerName = layerNameById.get(layerId) ?? layerId;
+        const message = err instanceof ApiError ? err.message : 'השיבוץ נכשל';
+        failures.push(`${layerName}: ${message}`);
+      }
+    }
+    setIsScheduling(false);
+    if (successCount > 0) {
+      setScheduleLayerIds([]);
+      setScheduleTimeText('');
+      setScheduleNotes('');
+    }
+    if (failures.length === 0) {
+      setScheduleMessage(`שובץ בהצלחה ל-${successCount} שכבות`);
+    } else {
+      setScheduleMessage(
+        `${successCount > 0 ? `שובץ ל-${successCount} שכבות. ` : ''}נכשל עבור: ${failures.join('; ')}`
+      );
+    }
+  }
+
   if (!activity) {
     return (
       <ThemedView style={styles.flex}>
@@ -142,6 +231,16 @@ export default function ActivityDetailScreen() {
             </View>
           )}
         </View>
+
+        {isPicking && (
+          <Card style={styles.pickBanner}>
+            <ThemedText type="smallBold" style={styles.rtlText}>
+              שיבוץ ליום {DAY_OF_WEEK_LABELS[pickDay]} בשעה {pickTime.slice(0, 5)}
+            </ThemedText>
+            {slotError && <ThemedText themeColor="danger" style={styles.rtlText}>{slotError}</ThemedText>}
+            <Button label="+ הוסף למשבצת שנבחרה" onPress={handleAddToPickedSlot} loading={isAddingToSlot} />
+          </Card>
+        )}
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
 
@@ -229,6 +328,59 @@ export default function ActivityDetailScreen() {
             </View>
           )}
         </Card>
+
+        {myLayers.length > 0 && (
+          <>
+            <ThemedText type="subtitle" style={styles.rtlText}>
+              הוספה ללוח
+            </ThemedText>
+            <Card style={styles.card}>
+              <ThemedText type="smallBold" style={styles.rtlText}>
+                לאיזו שכבה להוסיף? (ניתן לבחור כמה)
+              </ThemedText>
+              <View style={styles.chipRow}>
+                {myLayers.map((l) => (
+                  <Button
+                    key={l.id}
+                    label={l.name}
+                    size="small"
+                    fullWidth={false}
+                    variant={scheduleLayerIds.includes(l.id) ? 'primary' : 'ghost'}
+                    onPress={() => toggleScheduleLayer(l.id)}
+                  />
+                ))}
+              </View>
+
+              <ThemedText type="smallBold" style={styles.rtlText}>
+                יום
+              </ThemedText>
+              <View style={styles.chipRow}>
+                {DAYS_OF_WEEK.map((d) => (
+                  <Button
+                    key={d}
+                    label={DAY_OF_WEEK_LABELS[d]}
+                    size="small"
+                    fullWidth={false}
+                    variant={scheduleDay === d ? 'primary' : 'ghost'}
+                    onPress={() => setScheduleDay(d)}
+                  />
+                ))}
+              </View>
+
+              <TextField
+                label="שעה (למשל 16:00)"
+                placeholder="16:00"
+                value={scheduleTimeText}
+                onChangeText={setScheduleTimeText}
+              />
+              <TextField label="הערות (אופציונלי)" value={scheduleNotes} onChangeText={setScheduleNotes} />
+
+              {scheduleMessage && <ThemedText style={styles.rtlText}>{scheduleMessage}</ThemedText>}
+
+              <Button label="הוסף ללוח" onPress={handleAddToSchedule} loading={isScheduling} variant="secondary" />
+            </Card>
+          </>
+        )}
 
         <ThemedText type="subtitle" style={styles.rtlText}>
           דירוג הפעילות
@@ -360,6 +512,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   card: {
+    gap: Spacing.two,
+  },
+  pickBanner: {
     gap: Spacing.two,
   },
   metaGrid: {

@@ -1,9 +1,10 @@
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { listActivities } from '@/api/activities';
 import { ApiError } from '@/api/client';
+import { createScheduleEntry } from '@/api/schedule';
 import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -20,18 +21,26 @@ import {
   GRADE_LABELS,
   GRADE_LEVELS,
 } from '@/constants/activity';
+import { DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
-import { Activity, ActivityCategory, ActivityLocation, ActivityType } from '@/types';
+import { Activity, ActivityCategory, ActivityLocation, ActivityType, DayOfWeek } from '@/types';
 
 const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
+  const { pickForLayerId, pickDay, pickTime } = useLocalSearchParams<{
+    pickForLayerId?: string;
+    pickDay?: DayOfWeek;
+    pickTime?: string;
+  }>();
+  const isPicking = !!pickForLayerId && !!pickDay && !!pickTime;
   const [activities, setActivities] = useState<Activity[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
@@ -92,6 +101,23 @@ export default function ActivitiesScreen() {
     );
   }
 
+  async function handleAddToSlot(activityId: string) {
+    if (!pickForLayerId || !pickDay || !pickTime) return;
+    setAddingId(activityId);
+    setError(null);
+    try {
+      await createScheduleEntry(pickForLayerId, {
+        activity_id: activityId,
+        day_of_week: pickDay,
+        start_time: pickTime,
+      });
+      router.replace(`/layer/${pickForLayerId}/schedule`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
+      setAddingId(null);
+    }
+  }
+
   return (
     <ThemedView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -110,6 +136,22 @@ export default function ActivitiesScreen() {
             </Link>
           </View>
         </View>
+
+        {isPicking && (
+          <Card style={styles.pickBanner}>
+            <ThemedText type="smallBold" style={styles.rtlText}>
+              בחירת פעילות ליום {DAY_OF_WEEK_LABELS[pickDay]} בשעה {pickTime.slice(0, 5)} — לחצו + כדי
+              להוסיף ללוח
+            </ThemedText>
+            <Button
+              label="ביטול, חזרה ללוח"
+              variant="ghost"
+              size="small"
+              fullWidth={false}
+              onPress={() => router.replace(`/layer/${pickForLayerId}/schedule`)}
+            />
+          </Card>
+        )}
 
         <Card style={styles.filtersCard}>
           <TextField label="חיפוש" placeholder="שם או תיאור" value={search} onChangeText={setSearch} />
@@ -279,12 +321,30 @@ export default function ActivitiesScreen() {
                     ))}
                   </View>
                 )}
-                <Button
-                  label="פרטים ←"
-                  variant="secondary"
-                  size="small"
-                  onPress={() => router.push(`/activities/${activity.id}`)}
-                />
+                <View style={styles.tileActions}>
+                  <Button
+                    label="פרטים ←"
+                    variant="secondary"
+                    size="small"
+                    onPress={() =>
+                      router.push(
+                        isPicking
+                          ? `/activities/${activity.id}?pickForLayerId=${pickForLayerId}&pickDay=${pickDay}&pickTime=${pickTime}`
+                          : `/activities/${activity.id}`
+                      )
+                    }
+                  />
+                  {isPicking && (
+                    <Button
+                      label="+"
+                      variant="primary"
+                      size="small"
+                      fullWidth={false}
+                      loading={addingId === activity.id}
+                      onPress={() => handleAddToSlot(activity.id)}
+                    />
+                  )}
+                </View>
               </Card>
             ))}
           </View>
@@ -346,6 +406,18 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
   filtersCard: {
+    gap: Spacing.two,
+  },
+  pickBanner: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  tileActions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
     gap: Spacing.two,
   },
   chipRow: {

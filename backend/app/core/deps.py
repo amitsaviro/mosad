@@ -12,6 +12,7 @@ from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.layer import Layer
 from app.models.participant import Participant
+from app.models.scheduled_activity import ScheduledActivity
 from app.models.user import User, UserRole
 from app.services.layer_service import user_can_manage_layer, user_can_view_layer
 
@@ -119,3 +120,24 @@ def get_accessible_participant(
     if layer is None or not user_can_manage_layer(db, current_user, layer):
         raise not_found
     return participant
+
+
+def get_manageable_schedule_entry(
+    entry_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ScheduledActivity:
+    """For routes keyed by a schedule entry_id (PATCH/DELETE) — requires
+    WRITE access to the entry's own layer, same pattern as
+    get_accessible_participant."""
+    not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="השיבוץ לא נמצא"
+    )
+    entry = db.get(ScheduledActivity, entry_id)
+    if entry is None:
+        raise not_found
+
+    layer = db.get(Layer, entry.layer_id)
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
+        raise not_found
+    return entry

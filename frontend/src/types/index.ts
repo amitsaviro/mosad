@@ -121,3 +121,38 @@ export type ActivityComment = {
   body: string;
   created_at: string;
 };
+
+export type DayOfWeek =
+  | 'sunday'
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday';
+
+export type ScheduledActivity = {
+  id: string;
+  layer_id: string;
+  activity_id: string;
+  activity_name: string;
+  activity_type: ActivityType;
+  day_of_week: DayOfWeek;
+  start_time: string;
+  duration_minutes: number | null;
+  notes: string | null;
+  equipment: string[];
+  equipment_checked: string[];
+  created_by_name: string;
+  can_manage: boolean;
+  created_at: string;
+};
+
+export type KeyDate = {
+  id: string;
+  institution_id: string;
+  name: string;
+  date: string; // "YYYY-MM-DD"
+  note: string | null;
+  created_at: string;
+};

@@ -146,6 +146,13 @@ export default function LayerDetailScreen() {
           )}
           {layer && !layer.can_manage && <Badge label="צפייה בלבד — אינך משוייך לשכבה זו" />}
           <View style={styles.layerActionsRow}>
+            <Button
+              label="לוח שבועי →"
+              variant="secondary"
+              size="small"
+              fullWidth={false}
+              onPress={() => router.push(`/layer/${id}/schedule`)}
+            />
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>

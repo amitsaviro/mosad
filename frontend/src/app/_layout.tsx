@@ -41,11 +41,13 @@ function RootNavigator() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
       <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
-      <Stack.Screen name="layer/[id]" options={{ title: 'שכבה' }} />
+      <Stack.Screen name="layer/[id]/index" options={{ title: 'שכבה' }} />
+      <Stack.Screen name="layer/[id]/schedule" options={{ title: 'לוח שבועי' }} />
       <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
       <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
       <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />
       <Stack.Screen name="activities/[id]" options={{ title: 'פעילות' }} />
+      <Stack.Screen name="year" options={{ title: 'תצוגת שנה' }} />
     </Stack>
   );
 }
