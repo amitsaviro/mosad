@@ -6,6 +6,7 @@ from app.models.activity import Activity, ActivityType
 from app.models.activity_attachment import ActivityAttachment
 from app.models.activity_comment import ActivityComment
 from app.models.activity_rating import ActivityRating
+from app.models.calendar_activity import CalendarActivity
 from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.institution import Institution
 from app.models.institution_key_date import InstitutionKeyDate
@@ -29,4 +30,5 @@ __all__ = [
     "ScheduledActivity",
     "DayOfWeek",
     "InstitutionKeyDate",
+    "CalendarActivity",
 ]

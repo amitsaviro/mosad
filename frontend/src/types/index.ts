@@ -156,3 +156,26 @@ export type KeyDate = {
   note: string | null;
   created_at: string;
 };
+
+// Computed from the real Hebrew calendar on the backend -- never
+// stored, so there's nothing here for anyone to keep up to date.
+export type Holiday = {
+  name: string;
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string; // "YYYY-MM-DD"
+};
+
+export type CalendarActivity = {
+  id: string;
+  layer_id: string;
+  layer_name: string;
+  activity_id: string;
+  activity_name: string;
+  activity_type: ActivityType;
+  date: string; // "YYYY-MM-DD"
+  notes: string | null;
+  created_by_name: string;
+  can_manage: boolean;
+  is_past: boolean;
+  created_at: string;
+};

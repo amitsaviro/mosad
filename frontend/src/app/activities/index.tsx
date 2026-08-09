@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { listActivities } from '@/api/activities';
+import { createCalendarActivity } from '@/api/calendarActivities';
 import { ApiError } from '@/api/client';
 import { createScheduleEntry } from '@/api/schedule';
 import { Badge } from '@/components/badge';
@@ -29,12 +30,15 @@ const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
-  const { pickForLayerId, pickDay, pickTime } = useLocalSearchParams<{
+  const { pickForLayerId, pickDay, pickTime, pickCalendarDate } = useLocalSearchParams<{
     pickForLayerId?: string;
     pickDay?: DayOfWeek;
     pickTime?: string;
+    pickCalendarDate?: string;
   }>();
-  const isPicking = !!pickForLayerId && !!pickDay && !!pickTime;
+  const isWeeklyPicking = !!pickForLayerId && !!pickDay && !!pickTime;
+  const isCalendarPicking = !!pickForLayerId && !!pickCalendarDate;
+  const isPicking = isWeeklyPicking || isCalendarPicking;
   const [activities, setActivities] = useState<Activity[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -101,17 +105,28 @@ export default function ActivitiesScreen() {
     );
   }
 
+  function pickQueryString(): string {
+    if (isWeeklyPicking) return `pickForLayerId=${pickForLayerId}&pickDay=${pickDay}&pickTime=${pickTime}`;
+    if (isCalendarPicking) return `pickForLayerId=${pickForLayerId}&pickCalendarDate=${pickCalendarDate}`;
+    return '';
+  }
+
   async function handleAddToSlot(activityId: string) {
-    if (!pickForLayerId || !pickDay || !pickTime) return;
+    if (!pickForLayerId) return;
     setAddingId(activityId);
     setError(null);
     try {
-      await createScheduleEntry(pickForLayerId, {
-        activity_id: activityId,
-        day_of_week: pickDay,
-        start_time: pickTime,
-      });
-      router.replace(`/layer/${pickForLayerId}/schedule`);
+      if (isCalendarPicking && pickCalendarDate) {
+        await createCalendarActivity(pickForLayerId, { activity_id: activityId, date: pickCalendarDate });
+        router.replace('/year');
+      } else if (isWeeklyPicking && pickDay && pickTime) {
+        await createScheduleEntry(pickForLayerId, {
+          activity_id: activityId,
+          day_of_week: pickDay,
+          start_time: pickTime,
+        });
+        router.replace(`/layer/${pickForLayerId}/schedule`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
       setAddingId(null);
@@ -140,15 +155,18 @@ export default function ActivitiesScreen() {
         {isPicking && (
           <Card style={styles.pickBanner}>
             <ThemedText type="smallBold" style={styles.rtlText}>
-              בחירת פעילות ליום {DAY_OF_WEEK_LABELS[pickDay]} בשעה {pickTime.slice(0, 5)} — לחצו + כדי
-              להוסיף ללוח
+              {isWeeklyPicking
+                ? `בחירת פעילות ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)} — לחצו + כדי להוסיף ללוח`
+                : `בחירת פעילות לתאריך ${pickCalendarDate} — לחצו + כדי לשבץ`}
             </ThemedText>
             <Button
-              label="ביטול, חזרה ללוח"
+              label="ביטול, חזרה"
               variant="ghost"
               size="small"
               fullWidth={false}
-              onPress={() => router.replace(`/layer/${pickForLayerId}/schedule`)}
+              onPress={() =>
+                router.replace(isWeeklyPicking ? `/layer/${pickForLayerId}/schedule` : '/year')
+              }
             />
           </Card>
         )}
@@ -329,7 +347,7 @@ export default function ActivitiesScreen() {
                     onPress={() =>
                       router.push(
                         isPicking
-                          ? `/activities/${activity.id}?pickForLayerId=${pickForLayerId}&pickDay=${pickDay}&pickTime=${pickTime}`
+                          ? `/activities/${activity.id}?${pickQueryString()}`
                           : `/activities/${activity.id}`
                       )
                     }

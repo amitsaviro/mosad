@@ -9,11 +9,13 @@ from app.core.deps import get_current_user, get_manageable_layer, get_viewable_l
 from app.database import get_db
 from app.models.layer import Layer
 from app.models.user import User
+from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut
 from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
 from app.schemas.scheduled_activity import ScheduledActivityCreate, ScheduledActivityOut
 from app.schemas.user import UserOut
 from app.services.auth_service import build_user_out
+from app.services.calendar_activity_service import create_calendar_activity, to_calendar_activity_out
 from app.services.group_service import create_layer, join_layer
 from app.services.layer_service import (
     assign_counselor,
@@ -175,3 +177,14 @@ def list_scheduled_activities_endpoint(
 ):
     entries = list_scheduled_activities(db, layer)
     return [to_scheduled_activity_out(db, current_user, e) for e in entries]
+
+
+@router.post("/{layer_id}/calendar-activities", response_model=CalendarActivityOut, status_code=201)
+def create_calendar_activity_endpoint(
+    payload: CalendarActivityCreate,
+    layer: Layer = Depends(get_manageable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    entry = create_calendar_activity(db, current_user, layer, payload)
+    return to_calendar_activity_out(db, current_user, entry)

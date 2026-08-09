@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.database import get_db
+from app.models.calendar_activity import CalendarActivity
 from app.models.layer import Layer
 from app.models.participant import Participant
 from app.models.scheduled_activity import ScheduledActivity
@@ -134,6 +135,26 @@ def get_manageable_schedule_entry(
         status_code=status.HTTP_404_NOT_FOUND, detail="השיבוץ לא נמצא"
     )
     entry = db.get(ScheduledActivity, entry_id)
+    if entry is None:
+        raise not_found
+
+    layer = db.get(Layer, entry.layer_id)
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
+        raise not_found
+    return entry
+
+
+def get_manageable_calendar_activity(
+    entry_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CalendarActivity:
+    """For DELETE /calendar-activities/{id} -- requires WRITE access to
+    the entry's own layer, same pattern as get_manageable_schedule_entry."""
+    not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="הפעילות בלוח השנה לא נמצאה"
+    )
+    entry = db.get(CalendarActivity, entry_id)
     if entry is None:
         raise not_found
 

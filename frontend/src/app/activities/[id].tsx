@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
 import { addComment, addRating, deleteActivity, getActivity, listComments, listRatings } from '@/api/activities';
+import { createCalendarActivity } from '@/api/calendarActivities';
 import { ApiError } from '@/api/client';
 import { listLayers } from '@/api/layers';
 import { createScheduleEntry } from '@/api/schedule';
@@ -23,7 +24,13 @@ import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { Activity, ActivityComment, ActivityRating, DayOfWeek, Layer } from '@/types';
 
-type PickParams = { id: string; pickForLayerId?: string; pickDay?: DayOfWeek; pickTime?: string };
+type PickParams = {
+  id: string;
+  pickForLayerId?: string;
+  pickDay?: DayOfWeek;
+  pickTime?: string;
+  pickCalendarDate?: string;
+};
 
 function toApiTime(text: string): string | null {
   const match = text.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
@@ -33,9 +40,11 @@ function toApiTime(text: string): string | null {
 }
 
 export default function ActivityDetailScreen() {
-  const { id, pickForLayerId, pickDay, pickTime } = useLocalSearchParams<PickParams>();
+  const { id, pickForLayerId, pickDay, pickTime, pickCalendarDate } = useLocalSearchParams<PickParams>();
   const router = useRouter();
-  const isPicking = !!pickForLayerId && !!pickDay && !!pickTime;
+  const isWeeklyPicking = !!pickForLayerId && !!pickDay && !!pickTime;
+  const isCalendarPicking = !!pickForLayerId && !!pickCalendarDate;
+  const isPicking = isWeeklyPicking || isCalendarPicking;
   const [isAddingToSlot, setIsAddingToSlot] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -114,16 +123,21 @@ export default function ActivityDetailScreen() {
   }
 
   async function handleAddToPickedSlot() {
-    if (!pickForLayerId || !pickDay || !pickTime) return;
+    if (!pickForLayerId) return;
     setIsAddingToSlot(true);
     setSlotError(null);
     try {
-      await createScheduleEntry(pickForLayerId, {
-        activity_id: id,
-        day_of_week: pickDay,
-        start_time: pickTime,
-      });
-      router.replace(`/layer/${pickForLayerId}/schedule`);
+      if (isCalendarPicking && pickCalendarDate) {
+        await createCalendarActivity(pickForLayerId, { activity_id: id, date: pickCalendarDate });
+        router.replace('/year');
+      } else if (isWeeklyPicking && pickDay && pickTime) {
+        await createScheduleEntry(pickForLayerId, {
+          activity_id: id,
+          day_of_week: pickDay,
+          start_time: pickTime,
+        });
+        router.replace(`/layer/${pickForLayerId}/schedule`);
+      }
     } catch (err) {
       setSlotError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
       setIsAddingToSlot(false);
@@ -235,7 +249,9 @@ export default function ActivityDetailScreen() {
         {isPicking && (
           <Card style={styles.pickBanner}>
             <ThemedText type="smallBold" style={styles.rtlText}>
-              שיבוץ ליום {DAY_OF_WEEK_LABELS[pickDay]} בשעה {pickTime.slice(0, 5)}
+              {isWeeklyPicking
+                ? `שיבוץ ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)}`
+                : `שיבוץ לתאריך ${pickCalendarDate}`}
             </ThemedText>
             {slotError && <ThemedText themeColor="danger" style={styles.rtlText}>{slotError}</ThemedText>}
             <Button label="+ הוסף למשבצת שנבחרה" onPress={handleAddToPickedSlot} loading={isAddingToSlot} />
