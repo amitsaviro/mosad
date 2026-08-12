@@ -233,9 +233,7 @@ export default function LayerDetailScreen() {
             </ThemedText>
             {upcomingBirthdays.map(({ participant, info }) => (
               <View key={participant.id} style={styles.birthdayRow}>
-                <ThemedText style={styles.rtlText}>
-                  {participant.full_name} — מלאו/ת {info.turningAge}
-                </ThemedText>
+                <ThemedText style={styles.rtlText}>{participant.full_name}</ThemedText>
                 <Badge
                   label={info.daysUntil === 0 ? 'היום! 🎉' : info.daysUntil === 1 ? 'מחר' : `בעוד ${info.daysUntil} ימים`}
                   tone={info.daysUntil <= 1 ? 'primary' : 'neutral'}
@@ -332,7 +330,6 @@ export default function LayerDetailScreen() {
                         : birthday.daysUntil === 1
                           ? 'יום הולדת מחר'
                           : `יום הולדת בעוד ${birthday.daysUntil} ימים`}
-                      {' '}(מלאו/ת {birthday.turningAge})
                     </ThemedText>
                   )}
                   {layer?.can_manage &&
