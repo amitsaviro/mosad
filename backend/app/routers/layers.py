@@ -1,19 +1,22 @@
 # Layer (group/cohort) endpoints: create, join-by-code, list, detail,
 # counselor assignment, and the participant roster nested under a layer.
 import uuid
+from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_manageable_layer, get_viewable_layer, require_institution_admin
 from app.database import get_db
 from app.models.layer import Layer
 from app.models.user import User
+from app.schemas.attendance import AttendanceMarkInput, AttendanceOut
 from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut
 from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
 from app.schemas.scheduled_activity import ScheduledActivityCreate, ScheduledActivityOut
 from app.schemas.user import UserOut
+from app.services.attendance_service import list_attendance_for_date, mark_attendance, to_attendance_out
 from app.services.auth_service import build_user_out
 from app.services.calendar_activity_service import create_calendar_activity, to_calendar_activity_out
 from app.services.group_service import create_layer, join_layer
@@ -188,3 +191,24 @@ def create_calendar_activity_endpoint(
 ):
     entry = create_calendar_activity(db, current_user, layer, payload)
     return to_calendar_activity_out(db, current_user, entry)
+
+
+@router.post("/{layer_id}/attendance", response_model=list[AttendanceOut])
+def mark_attendance_endpoint(
+    payload: AttendanceMarkInput,
+    layer: Layer = Depends(get_manageable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    records = mark_attendance(db, current_user, layer, payload)
+    return [to_attendance_out(r) for r in records]
+
+
+@router.get("/{layer_id}/attendance", response_model=list[AttendanceOut])
+def list_attendance_endpoint(
+    attendance_date: date = Query(alias="date"),
+    layer: Layer = Depends(get_viewable_layer),
+    db: Session = Depends(get_db),
+):
+    records = list_attendance_for_date(db, layer, attendance_date)
+    return [to_attendance_out(r) for r in records]

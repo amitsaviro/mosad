@@ -13,6 +13,7 @@ import {
   listLayers,
   updateLayer,
 } from '@/api/layers';
+import { listParticipants } from '@/api/participants';
 import { adminRemoveMember, adminUpdateMember, listInstitutionUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge } from '@/components/badge';
@@ -24,13 +25,24 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { Layer, User } from '@/types';
+import { Layer, Participant, User } from '@/types';
+import { nextBirthdayInfo } from '@/utils/calendar';
+
+const BIRTHDAY_WINDOW_DAYS = 30;
+
+type UpcomingBirthday = {
+  participant: Participant;
+  layerName: string;
+  daysUntil: number;
+  turningAge: number;
+};
 
 export default function DashboardScreen() {
   const { user, logout, refreshUser } = useAuth();
   const router = useRouter();
   const [layers, setLayers] = useState<Layer[]>([]);
   const [members, setMembers] = useState<User[]>([]);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<UpcomingBirthday[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [newInstitutionName, setNewInstitutionName] = useState('');
@@ -50,6 +62,23 @@ export default function DashboardScreen() {
       if (isAdmin) {
         setMembers(await listInstitutionUsers());
       }
+
+      const manageableLayers = fetchedLayers.filter((l) => l.can_manage);
+      const rosterByLayer = await Promise.all(
+        manageableLayers.map(async (l) => ({ layer: l, participants: await listParticipants(l.id) }))
+      );
+      const birthdays: UpcomingBirthday[] = [];
+      for (const { layer, participants } of rosterByLayer) {
+        for (const p of participants) {
+          if (!p.is_active || !p.date_of_birth) continue;
+          const info = nextBirthdayInfo(p.date_of_birth);
+          if (info.daysUntil <= BIRTHDAY_WINDOW_DAYS) {
+            birthdays.push({ participant: p, layerName: layer.name, daysUntil: info.daysUntil, turningAge: info.turningAge });
+          }
+        }
+      }
+      birthdays.sort((a, b) => a.daysUntil - b.daysUntil);
+      setUpcomingBirthdays(birthdays);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'טעינת הנתונים נכשלה');
     }
@@ -210,6 +239,25 @@ export default function DashboardScreen() {
         </View>
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+        {upcomingBirthdays.length > 0 && (
+          <Card style={styles.list}>
+            <ThemedText type="subtitle" style={styles.rtlText}>
+              🎂 ימי הולדת קרובים
+            </ThemedText>
+            {upcomingBirthdays.map(({ participant, layerName, daysUntil, turningAge }) => (
+              <View key={participant.id} style={styles.birthdayRow}>
+                <ThemedText style={styles.rtlText}>
+                  {participant.full_name} ({layerName}) — מלאו/ת {turningAge}
+                </ThemedText>
+                <Badge
+                  label={daysUntil === 0 ? 'היום! 🎉' : daysUntil === 1 ? 'מחר' : `בעוד ${daysUntil} ימים`}
+                  tone={daysUntil <= 1 ? 'primary' : 'neutral'}
+                />
+              </View>
+            ))}
+          </Card>
+        )}
 
         {hasNoGroupYet && (
           <Card>
@@ -399,6 +447,13 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: Spacing.three,
+  },
+  birthdayRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
   layerCard: {
     gap: Spacing.one,

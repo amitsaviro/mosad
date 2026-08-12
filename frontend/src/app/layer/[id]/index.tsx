@@ -18,11 +18,13 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ConfirmButton } from '@/components/confirm-button';
 import { EditableText } from '@/components/editable-text';
+import { ParticipantNotesModal } from '@/components/participant-notes-modal';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { Layer, Participant, User } from '@/types';
+import { fromIsraeliDate, nextBirthdayInfo, toIsraeliDate } from '@/utils/calendar';
 
 export default function LayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +35,10 @@ export default function LayerDetailScreen() {
   const [counselors, setCounselors] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [newDob, setNewDob] = useState('');
+  const [notesParticipant, setNotesParticipant] = useState<Participant | null>(null);
+  const [editingDobId, setEditingDobId] = useState<string | null>(null);
+  const [dobDraft, setDobDraft] = useState('');
 
   const isAdmin = user?.role === 'institution_admin';
 
@@ -59,12 +65,48 @@ export default function LayerDetailScreen() {
 
   async function handleAddParticipant() {
     if (!newName.trim()) return;
+    let dob: string | undefined;
+    if (newDob.trim()) {
+      const parsed = fromIsraeliDate(newDob);
+      if (!parsed) {
+        setError('תאריך הלידה אינו בפורמט תקין, למשל 05/03/2015');
+        return;
+      }
+      dob = parsed;
+    }
     try {
-      await createParticipant(id, newName.trim());
+      await createParticipant(id, newName.trim(), dob);
       setNewName('');
+      setNewDob('');
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'הוספת החניך נכשלה');
+    }
+  }
+
+  async function handleSaveDob(participantId: string) {
+    const trimmed = dobDraft.trim();
+    if (!trimmed) {
+      try {
+        await updateParticipant(participantId, { date_of_birth: null });
+        setEditingDobId(null);
+        await loadData();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'העדכון נכשל');
+      }
+      return;
+    }
+    const parsed = fromIsraeliDate(trimmed);
+    if (!parsed) {
+      setError('תאריך הלידה אינו בפורמט תקין, למשל 05/03/2015');
+      return;
+    }
+    try {
+      await updateParticipant(participantId, { date_of_birth: parsed });
+      setEditingDobId(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'העדכון נכשל');
     }
   }
 
@@ -153,6 +195,13 @@ export default function LayerDetailScreen() {
               fullWidth={false}
               onPress={() => router.push(`/layer/${id}/schedule`)}
             />
+            <Button
+              label="נוכחות →"
+              variant="secondary"
+              size="small"
+              fullWidth={false}
+              onPress={() => router.push(`/layer/${id}/attendance`)}
+            />
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>
@@ -187,6 +236,12 @@ export default function LayerDetailScreen() {
               הוספת חניך
             </ThemedText>
             <TextField label="שם החניך" placeholder="ישראל ישראלי" value={newName} onChangeText={setNewName} />
+            <TextField
+              label="תאריך לידה (אופציונלי, יום/חודש/שנה)"
+              placeholder="05/03/2015"
+              value={newDob}
+              onChangeText={setNewDob}
+            />
             <Button label="הוסף" onPress={handleAddParticipant} />
           </Card>
         )}
@@ -201,28 +256,94 @@ export default function LayerDetailScreen() {
           </ThemedText>
         ) : (
           <View style={styles.list}>
-            {participants.map((item) => (
-              <Card key={item.id} style={styles.row}>
-                <View style={item.is_active ? undefined : styles.inactiveText}>
-                  <EditableText
-                    value={item.full_name}
-                    canEdit={!!layer?.can_manage}
-                    onSave={(name) => handleRenameParticipant(item.id, name)}
-                  />
-                </View>
-                {layer?.can_manage && (
-                  <Button
-                    label={item.is_active ? 'השבת' : 'הפעל'}
-                    onPress={() => handleToggleActive(item)}
-                    variant={item.is_active ? 'ghost' : 'secondary'}
-                    fullWidth={false}
-                  />
-                )}
-              </Card>
-            ))}
+            {participants.map((item) => {
+              const birthday = item.date_of_birth ? nextBirthdayInfo(item.date_of_birth) : null;
+              const showBirthday = birthday && birthday.daysUntil <= 7;
+              return (
+                <Card key={item.id} style={styles.participantCard}>
+                  <View style={styles.row}>
+                    <View style={item.is_active ? undefined : styles.inactiveText}>
+                      <EditableText
+                        value={item.full_name}
+                        canEdit={!!layer?.can_manage}
+                        onSave={(name) => handleRenameParticipant(item.id, name)}
+                      />
+                    </View>
+                    <View style={styles.rowActions}>
+                      <Button
+                        label="📝 הערות"
+                        variant="ghost"
+                        size="small"
+                        fullWidth={false}
+                        onPress={() => setNotesParticipant(item)}
+                      />
+                      {layer?.can_manage && (
+                        <Button
+                          label={item.is_active ? 'השבת' : 'הפעל'}
+                          onPress={() => handleToggleActive(item)}
+                          variant={item.is_active ? 'ghost' : 'secondary'}
+                          size="small"
+                          fullWidth={false}
+                        />
+                      )}
+                    </View>
+                  </View>
+                  {showBirthday && (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                      🎂{' '}
+                      {birthday.daysUntil === 0
+                        ? 'יום הולדת היום!'
+                        : birthday.daysUntil === 1
+                          ? 'יום הולדת מחר'
+                          : `יום הולדת בעוד ${birthday.daysUntil} ימים`}
+                      {' '}(מלאו/ת {birthday.turningAge})
+                    </ThemedText>
+                  )}
+                  {layer?.can_manage &&
+                    (editingDobId === item.id ? (
+                      <View style={styles.dobEditRow}>
+                        <View style={styles.dobEditField}>
+                          <TextField placeholder="05/03/2015" value={dobDraft} onChangeText={setDobDraft} />
+                        </View>
+                        <Button
+                          label="שמור"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => handleSaveDob(item.id)}
+                        />
+                        <Button
+                          label="ביטול"
+                          variant="ghost"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => setEditingDobId(null)}
+                        />
+                      </View>
+                    ) : (
+                      <ThemedText
+                        type="small"
+                        themeColor="textSecondary"
+                        style={styles.rtlText}
+                        onPress={() => {
+                          setDobDraft(item.date_of_birth ? toIsraeliDate(item.date_of_birth) : '');
+                          setEditingDobId(item.id);
+                        }}
+                      >
+                        {item.date_of_birth ? `🎂 תאריך לידה: ${toIsraeliDate(item.date_of_birth)}` : '+ הוספת תאריך לידה'}
+                      </ThemedText>
+                    ))}
+                </Card>
+              );
+            })}
           </View>
         )}
       </ScrollView>
+      <ParticipantNotesModal
+        participantId={notesParticipant?.id ?? null}
+        participantName={notesParticipant?.full_name ?? ''}
+        canManage={!!layer?.can_manage}
+        onClose={() => setNotesParticipant(null)}
+      />
     </ThemedView>
   );
 }
@@ -252,6 +373,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  participantCard: {
+    gap: Spacing.one,
+  },
+  rowActions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  dobEditRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-end',
+    gap: Spacing.two,
+  },
+  dobEditField: {
+    flex: 1,
   },
   layerActionsRow: {
     flexDirection: 'row-reverse',

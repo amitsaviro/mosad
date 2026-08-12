@@ -38,6 +38,31 @@ export type Participant = {
   is_active: boolean;
 };
 
+export type Attendance = {
+  id: string;
+  participant_id: string;
+  participant_name: string;
+  date: string; // "YYYY-MM-DD"
+  present: boolean;
+  marked_by_name: string;
+  created_at: string;
+};
+
+export type ParticipantAttendanceSummary = {
+  total_sessions: number;
+  present_count: number;
+  rate: number | null;
+};
+
+export type ParticipantNote = {
+  id: string;
+  participant_id: string;
+  author_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
+};
+
 export type ActivityType = 'opener' | 'main' | 'closing';
 
 // Content genre -- independent of ActivityType (the session-role of

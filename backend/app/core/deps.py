@@ -13,6 +13,7 @@ from app.database import get_db
 from app.models.calendar_activity import CalendarActivity
 from app.models.layer import Layer
 from app.models.participant import Participant
+from app.models.participant_note import ParticipantNote
 from app.models.scheduled_activity import ScheduledActivity
 from app.models.user import User, UserRole
 from app.services.layer_service import user_can_manage_layer, user_can_view_layer
@@ -121,6 +122,52 @@ def get_accessible_participant(
     if layer is None or not user_can_manage_layer(db, current_user, layer):
         raise not_found
     return participant
+
+
+def get_viewable_participant(
+    participant_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Participant:
+    """READ-only version of get_accessible_participant -- for viewing a
+    participant's attendance history or notes without needing WRITE
+    access to their layer (e.g. a counselor from another layer)."""
+    not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="החניך לא נמצא"
+    )
+    participant = db.get(Participant, participant_id)
+    if participant is None:
+        raise not_found
+
+    layer = db.get(Layer, participant.layer_id)
+    if layer is None or not user_can_view_layer(current_user, layer):
+        raise not_found
+    return participant
+
+
+def get_manageable_note(
+    note_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ParticipantNote:
+    """For DELETE /notes/{id} -- requires WRITE access to the note's
+    participant's layer (any layer manager, not just the note's author,
+    matching the same pattern as schedule/calendar-activity removal)."""
+    not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="ההערה לא נמצאה"
+    )
+    note = db.get(ParticipantNote, note_id)
+    if note is None:
+        raise not_found
+
+    participant = db.get(Participant, note.participant_id)
+    if participant is None:
+        raise not_found
+
+    layer = db.get(Layer, participant.layer_id)
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
+        raise not_found
+    return note
 
 
 def get_manageable_schedule_entry(

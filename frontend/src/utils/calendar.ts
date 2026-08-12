@@ -73,6 +73,32 @@ export function fromIsraeliDate(text: string): string | null {
   return `${y}-${m}-${d}`;
 }
 
+export type BirthdayInfo = {
+  nextBirthdayIso: string;
+  daysUntil: number;
+  turningAge: number;
+};
+
+// Local-time (not UTC) on purpose -- unlike the calendar-grid math
+// above, this is about "how many calendar days from right now, in the
+// user's own timezone" rather than iterating stable ISO date strings.
+export function nextBirthdayInfo(dateOfBirth: string): BirthdayInfo {
+  const [birthYear, birthMonth, birthDay] = dateOfBirth.split('-').map(Number);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let next = new Date(today.getFullYear(), birthMonth - 1, birthDay);
+  if (next.getTime() < today.getTime()) {
+    next = new Date(today.getFullYear() + 1, birthMonth - 1, birthDay);
+  }
+  const daysUntil = Math.round((next.getTime() - today.getTime()) / 86400000);
+  return {
+    nextBirthdayIso: `${next.getFullYear()}-${pad2(next.getMonth() + 1)}-${pad2(next.getDate())}`,
+    daysUntil,
+    turningAge: next.getFullYear() - birthYear,
+  };
+}
+
 export function buildItemsByDate(
   holidays: Holiday[],
   keyDates: KeyDate[],
