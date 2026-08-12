@@ -60,17 +60,21 @@ export function toIsraeliDate(iso: string): string {
 }
 
 export function isValidIsraeliDate(text: string): boolean {
-  return /^\d{2}\/\d{2}\/\d{4}$/.test(text.trim());
+  return fromIsraeliDate(text) !== null;
 }
 
+// Accepts both "/" and "." as separators, and a single digit for day/month
+// (e.g. "3.3.2000" or "3/3/2000" both mean 03/03/2000) -- people type
+// dates in whichever of those forms is fastest, and this shouldn't
+// reject a perfectly clear date just because it's missing a leading zero.
 export function fromIsraeliDate(text: string): string | null {
-  const match = text.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const match = text.trim().match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
   if (!match) return null;
   const [, d, m, y] = match;
   const day = Number(d);
   const month = Number(m);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${y}-${m}-${d}`;
+  return `${y}-${pad2(month)}-${pad2(day)}`;
 }
 
 export type BirthdayInfo = {

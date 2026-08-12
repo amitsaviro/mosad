@@ -133,6 +133,18 @@ export default function LayerAttendanceScreen() {
 
   const weekdayLabel = DAY_OF_WEEK_LABELS[DAYS_OF_WEEK[parseIsoDate(selectedDate).getUTCDay()]];
 
+  // Prefer popping back to wherever the user actually came from (so
+  // repeated visits here don't keep pushing new "layer" entries onto
+  // the stack and turn "back" into a loop) -- only push a fresh
+  // navigation if there's nowhere to pop back to (e.g. a direct link).
+  function handleBackToLayer() {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push(`/layer/${id}`);
+    }
+  }
+
   return (
     <ThemedView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -145,7 +157,7 @@ export default function LayerAttendanceScreen() {
             variant="ghost"
             size="small"
             fullWidth={false}
-            onPress={() => router.push(`/layer/${id}`)}
+            onPress={handleBackToLayer}
           />
         </View>
 

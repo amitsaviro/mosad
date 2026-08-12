@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
@@ -14,6 +14,7 @@ import {
 import { createParticipant, listParticipants, updateParticipant } from '@/api/participants';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge } from '@/components/badge';
+import { BirthdayPopup } from '@/components/birthday-popup';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -25,6 +26,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { Layer, Participant, User } from '@/types';
 import { fromIsraeliDate, nextBirthdayInfo, toIsraeliDate } from '@/utils/calendar';
+
+const BIRTHDAY_WINDOW_DAYS = 30;
 
 export default function LayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,8 +42,22 @@ export default function LayerDetailScreen() {
   const [notesParticipant, setNotesParticipant] = useState<Participant | null>(null);
   const [editingDobId, setEditingDobId] = useState<string | null>(null);
   const [dobDraft, setDobDraft] = useState('');
+  const [birthdayPopupDismissed, setBirthdayPopupDismissed] = useState(false);
 
   const isAdmin = user?.role === 'institution_admin';
+
+  const upcomingBirthdays = useMemo(() => {
+    return participants
+      .filter((p) => p.is_active && p.date_of_birth)
+      .map((p) => ({ participant: p, info: nextBirthdayInfo(p.date_of_birth!) }))
+      .filter(({ info }) => info.daysUntil <= BIRTHDAY_WINDOW_DAYS)
+      .sort((a, b) => a.info.daysUntil - b.info.daysUntil);
+  }, [participants]);
+
+  const todaysBirthdayNames = useMemo(
+    () => upcomingBirthdays.filter(({ info }) => info.daysUntil === 0).map(({ participant }) => participant.full_name),
+    [upcomingBirthdays]
+  );
 
   async function loadData() {
     setError(null);
@@ -209,6 +226,25 @@ export default function LayerDetailScreen() {
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
 
+        {upcomingBirthdays.length > 0 && (
+          <Card style={styles.list}>
+            <ThemedText type="subtitle" style={styles.rtlText}>
+              🎂 ימי הולדת קרובים
+            </ThemedText>
+            {upcomingBirthdays.map(({ participant, info }) => (
+              <View key={participant.id} style={styles.birthdayRow}>
+                <ThemedText style={styles.rtlText}>
+                  {participant.full_name} — מלאו/ת {info.turningAge}
+                </ThemedText>
+                <Badge
+                  label={info.daysUntil === 0 ? 'היום! 🎉' : info.daysUntil === 1 ? 'מחר' : `בעוד ${info.daysUntil} ימים`}
+                  tone={info.daysUntil <= 1 ? 'primary' : 'neutral'}
+                />
+              </View>
+            ))}
+          </Card>
+        )}
+
         {isAdmin && counselors.length > 0 && (
           <Card style={styles.list}>
             <ThemedText type="subtitle" style={styles.rtlText}>
@@ -344,6 +380,10 @@ export default function LayerDetailScreen() {
         canManage={!!layer?.can_manage}
         onClose={() => setNotesParticipant(null)}
       />
+      <BirthdayPopup
+        names={birthdayPopupDismissed ? [] : todaysBirthdayNames}
+        onClose={() => setBirthdayPopupDismissed(true)}
+      />
     </ThemedView>
   );
 }
@@ -367,6 +407,13 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
   list: {
+    gap: Spacing.two,
+  },
+  birthdayRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   row: {
