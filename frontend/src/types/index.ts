@@ -174,6 +174,8 @@ export type CalendarActivity = {
   activity_type: ActivityType;
   date: string; // "YYYY-MM-DD"
   notes: string | null;
+  equipment: string[];
+  equipment_checked: string[];
   created_by_name: string;
   can_manage: boolean;
   is_past: boolean;

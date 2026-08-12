@@ -31,6 +31,7 @@ type PickParams = {
   pickDay?: DayOfWeek;
   pickTime?: string;
   pickCalendarDate?: string;
+  pickShareLayerIds?: string;
 };
 
 function toApiTime(text: string): string | null {
@@ -41,11 +42,13 @@ function toApiTime(text: string): string | null {
 }
 
 export default function ActivityDetailScreen() {
-  const { id, pickForLayerId, pickDay, pickTime, pickCalendarDate } = useLocalSearchParams<PickParams>();
+  const { id, pickForLayerId, pickDay, pickTime, pickCalendarDate, pickShareLayerIds } =
+    useLocalSearchParams<PickParams>();
   const router = useRouter();
   const isWeeklyPicking = !!pickForLayerId && !!pickDay && !!pickTime;
   const isCalendarPicking = !!pickForLayerId && !!pickCalendarDate;
   const isPicking = isWeeklyPicking || isCalendarPicking;
+  const shareLayerIds = pickShareLayerIds ? pickShareLayerIds.split(',').filter(Boolean) : [];
   const [isAddingToSlot, setIsAddingToSlot] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -129,8 +132,10 @@ export default function ActivityDetailScreen() {
     setSlotError(null);
     try {
       if (isCalendarPicking && pickCalendarDate) {
-        await createCalendarActivity(pickForLayerId, { activity_id: id, date: pickCalendarDate });
-        router.replace(`/layer/${pickForLayerId}/calendar`);
+        for (const layerId of [pickForLayerId, ...shareLayerIds]) {
+          await createCalendarActivity(layerId, { activity_id: id, date: pickCalendarDate });
+        }
+        router.replace(`/layer/${pickForLayerId}/schedule`);
       } else if (isWeeklyPicking && pickDay && pickTime) {
         await createScheduleEntry(pickForLayerId, {
           activity_id: id,
@@ -252,7 +257,9 @@ export default function ActivityDetailScreen() {
             <ThemedText type="smallBold" style={styles.rtlText}>
               {isWeeklyPicking
                 ? `שיבוץ ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)}`
-                : `שיבוץ לתאריך ${toIsraeliDate(pickCalendarDate!)}`}
+                : `שיבוץ לתאריך ${toIsraeliDate(pickCalendarDate!)}${
+                    shareLayerIds.length > 0 ? ` (משותפת עם ${shareLayerIds.length} שכבות נוספות)` : ''
+                  }`}
             </ThemedText>
             {slotError && <ThemedText themeColor="danger" style={styles.rtlText}>{slotError}</ThemedText>}
             <Button label="+ הוסף למשבצת שנבחרה" onPress={handleAddToPickedSlot} loading={isAddingToSlot} />

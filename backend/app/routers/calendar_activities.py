@@ -9,11 +9,12 @@ from app.core.deps import get_current_user, get_manageable_calendar_activity
 from app.database import get_db
 from app.models.calendar_activity import CalendarActivity
 from app.models.user import User
-from app.schemas.calendar_activity import CalendarActivityOut
+from app.schemas.calendar_activity import CalendarActivityOut, CalendarActivityUpdate
 from app.services.calendar_activity_service import (
     delete_calendar_activity,
     list_calendar_activities_for_institution,
     to_calendar_activity_out,
+    update_calendar_activity,
 )
 
 router = APIRouter(prefix="/calendar-activities", tags=["calendar-activities"])
@@ -28,6 +29,17 @@ def list_calendar_activities_endpoint(
         return []
     entries = list_calendar_activities_for_institution(db, current_user.institution_id)
     return [to_calendar_activity_out(db, current_user, e) for e in entries]
+
+
+@router.patch("/{entry_id}", response_model=CalendarActivityOut)
+def update_calendar_activity_endpoint(
+    payload: CalendarActivityUpdate,
+    entry: CalendarActivity = Depends(get_manageable_calendar_activity),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    updated = update_calendar_activity(db, entry, payload)
+    return to_calendar_activity_out(db, current_user, updated)
 
 
 @router.delete("/{entry_id}", status_code=204)

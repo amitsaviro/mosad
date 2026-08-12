@@ -112,7 +112,7 @@ export default function YearOverviewScreen() {
         <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
           חגים ומועדים ישראליים מחושבים אוטומטית מהלוח העברי — אין צורך לעדכן אותם. תאריכים מרכזיים
           משותפים לכל המוסד (למשל אסיפת הורים או יום גיבוש כללי). כדי לשבץ פעילות מהמאגר לתאריך קבוע
-          עבור שכבה מסוימת, היכנסו ללוח השנה של אותה שכבה.
+          עבור שכבה מסוימת, היכנסו ללוח של אותה שכבה.
         </ThemedText>
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
@@ -120,7 +120,7 @@ export default function YearOverviewScreen() {
         {myLayers.length > 0 && (
           <Card style={styles.card}>
             <ThemedText type="subtitle" style={styles.rtlText}>
-              לוחות שנה לפי שכבה
+              הלוח של כל שכבה
             </ThemedText>
             <View style={styles.chipRow}>
               {myLayers.map((l) => (
@@ -130,7 +130,7 @@ export default function YearOverviewScreen() {
                   size="small"
                   fullWidth={false}
                   variant="ghost"
-                  onPress={() => router.push(`/layer/${l.id}/calendar`)}
+                  onPress={() => router.push(`/layer/${l.id}/schedule`)}
                 />
               ))}
             </View>

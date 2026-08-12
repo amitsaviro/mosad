@@ -31,15 +31,17 @@ const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
-  const { pickForLayerId, pickDay, pickTime, pickCalendarDate } = useLocalSearchParams<{
+  const { pickForLayerId, pickDay, pickTime, pickCalendarDate, pickShareLayerIds } = useLocalSearchParams<{
     pickForLayerId?: string;
     pickDay?: DayOfWeek;
     pickTime?: string;
     pickCalendarDate?: string;
+    pickShareLayerIds?: string;
   }>();
   const isWeeklyPicking = !!pickForLayerId && !!pickDay && !!pickTime;
   const isCalendarPicking = !!pickForLayerId && !!pickCalendarDate;
   const isPicking = isWeeklyPicking || isCalendarPicking;
+  const shareLayerIds = pickShareLayerIds ? pickShareLayerIds.split(',').filter(Boolean) : [];
   const [activities, setActivities] = useState<Activity[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -108,7 +110,10 @@ export default function ActivitiesScreen() {
 
   function pickQueryString(): string {
     if (isWeeklyPicking) return `pickForLayerId=${pickForLayerId}&pickDay=${pickDay}&pickTime=${pickTime}`;
-    if (isCalendarPicking) return `pickForLayerId=${pickForLayerId}&pickCalendarDate=${pickCalendarDate}`;
+    if (isCalendarPicking) {
+      const shareParam = pickShareLayerIds ? `&pickShareLayerIds=${pickShareLayerIds}` : '';
+      return `pickForLayerId=${pickForLayerId}&pickCalendarDate=${pickCalendarDate}${shareParam}`;
+    }
     return '';
   }
 
@@ -118,8 +123,10 @@ export default function ActivitiesScreen() {
     setError(null);
     try {
       if (isCalendarPicking && pickCalendarDate) {
-        await createCalendarActivity(pickForLayerId, { activity_id: activityId, date: pickCalendarDate });
-        router.replace(`/layer/${pickForLayerId}/calendar`);
+        for (const layerId of [pickForLayerId, ...shareLayerIds]) {
+          await createCalendarActivity(layerId, { activity_id: activityId, date: pickCalendarDate });
+        }
+        router.replace(`/layer/${pickForLayerId}/schedule`);
       } else if (isWeeklyPicking && pickDay && pickTime) {
         await createScheduleEntry(pickForLayerId, {
           activity_id: activityId,
@@ -158,18 +165,16 @@ export default function ActivitiesScreen() {
             <ThemedText type="smallBold" style={styles.rtlText}>
               {isWeeklyPicking
                 ? `בחירת פעילות ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)} — לחצו + כדי להוסיף ללוח`
-                : `בחירת פעילות לתאריך ${toIsraeliDate(pickCalendarDate!)} — לחצו + כדי לשבץ`}
+                : `בחירת פעילות לתאריך ${toIsraeliDate(pickCalendarDate!)}${
+                    shareLayerIds.length > 0 ? ` (משותפת עם ${shareLayerIds.length} שכבות נוספות)` : ''
+                  } — לחצו + כדי לשבץ`}
             </ThemedText>
             <Button
               label="ביטול, חזרה"
               variant="ghost"
               size="small"
               fullWidth={false}
-              onPress={() =>
-                router.replace(
-                  isWeeklyPicking ? `/layer/${pickForLayerId}/schedule` : `/layer/${pickForLayerId}/calendar`
-                )
-              }
+              onPress={() => router.replace(`/layer/${pickForLayerId}/schedule`)}
             />
           </Card>
         )}

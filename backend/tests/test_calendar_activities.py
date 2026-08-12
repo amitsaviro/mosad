@@ -67,6 +67,51 @@ def test_create_and_list_calendar_activity(client):
     assert len(listed.json()) == 1
 
 
+def test_equipment_defaults_and_toggle(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "calequip@test.com")
+    activity = _create_activity(client, admin_token, equipment=["חבל", "מים"])
+    entry = _pin(client, admin_token, layer["id"], activity["id"], date.today().isoformat()).json()
+
+    assert entry["equipment"] == ["חבל", "מים"]
+    assert entry["equipment_checked"] == []
+
+    response = client.patch(
+        f"/api/v1/calendar-activities/{entry['id']}",
+        json={"equipment_checked": ["חבל"]},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 200
+    assert response.json()["equipment_checked"] == ["חבל"]
+
+
+def test_update_notes(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "calnotes@test.com")
+    activity = _create_activity(client, admin_token)
+    entry = _pin(client, admin_token, layer["id"], activity["id"], date.today().isoformat()).json()
+
+    response = client.patch(
+        f"/api/v1/calendar-activities/{entry['id']}",
+        json={"notes": "לקחת אוטובוס 9:00"},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 200
+    assert response.json()["notes"] == "לקחת אוטובוס 9:00"
+
+
+def test_only_manager_can_update_calendar_activity(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "calupdatemanager@test.com")
+    activity = _create_activity(client, admin_token)
+    entry = _pin(client, admin_token, layer["id"], activity["id"], date.today().isoformat()).json()
+    other_token, _ = _register(client, "calupdateoutsider@test.com")
+
+    response = client.patch(
+        f"/api/v1/calendar-activities/{entry['id']}",
+        json={"notes": "should not work"},
+        headers=_auth_headers(other_token),
+    )
+    assert response.status_code == 404
+
+
 def test_past_date_is_flagged(client):
     admin_token, _, layer = _make_admin_with_layer(client, "calpast@test.com")
     activity = _create_activity(client, admin_token)

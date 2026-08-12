@@ -12,7 +12,7 @@ from app.models.activity import Activity
 from app.models.calendar_activity import CalendarActivity
 from app.models.layer import Layer
 from app.models.user import User
-from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut
+from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut, CalendarActivityUpdate
 from app.services.layer_service import user_can_manage_layer
 
 
@@ -53,6 +53,15 @@ def get_calendar_activity_or_404(db: Session, entry_id: uuid.UUID) -> CalendarAc
     return entry
 
 
+def update_calendar_activity(db: Session, entry: CalendarActivity, payload: CalendarActivityUpdate) -> CalendarActivity:
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(entry, field, value)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 def delete_calendar_activity(db: Session, entry: CalendarActivity) -> None:
     db.delete(entry)
     db.commit()
@@ -68,6 +77,8 @@ def to_calendar_activity_out(db: Session, user: User, entry: CalendarActivity) -
         activity_type=entry.activity.activity_type.value,
         date=entry.date,
         notes=entry.notes,
+        equipment=entry.activity.equipment,
+        equipment_checked=entry.equipment_checked,
         created_by_name=entry.created_by.full_name,
         can_manage=user_can_manage_layer(db, user, entry.layer),
         is_past=entry.date < date.today(),

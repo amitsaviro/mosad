@@ -15,6 +15,12 @@ export function createCalendarActivity(layerId: string, payload: CalendarActivit
   return api.post<CalendarActivity>(`/layers/${layerId}/calendar-activities`, payload);
 }
 
+export type CalendarActivityUpdate = { notes?: string; equipment_checked?: string[] };
+
+export function updateCalendarActivity(entryId: string, payload: CalendarActivityUpdate) {
+  return api.patch<CalendarActivity>(`/calendar-activities/${entryId}`, payload);
+}
+
 export function deleteCalendarActivity(entryId: string) {
   return api.delete<void>(`/calendar-activities/${entryId}`);
 }

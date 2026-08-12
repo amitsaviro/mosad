@@ -174,10 +174,15 @@ export default function DashboardScreen() {
             <ThemedText type="title" style={styles.rtlText}>
               שלום, {user?.full_name}
             </ThemedText>
-            <Badge
-              label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
-              tone={isAdmin ? 'primary' : 'neutral'}
-            />
+            <View style={styles.badgeRow}>
+              <Badge
+                label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
+                tone={isAdmin ? 'primary' : 'neutral'}
+              />
+              <Link href="/profile">
+                <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>
+              </Link>
+            </View>
             {user?.institution_name && (
               <EditableText
                 value={user.institution_name}
@@ -201,9 +206,6 @@ export default function DashboardScreen() {
               fullWidth={false}
             />
             <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
-            <Link href="/profile">
-              <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>
-            </Link>
           </View>
         </View>
 
@@ -381,6 +383,11 @@ const styles = StyleSheet.create({
   headerTextBlock: {
     gap: Spacing.two,
     flex: 1,
+  },
+  badgeRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.three,
   },
   headerActions: {
     alignItems: 'flex-end',

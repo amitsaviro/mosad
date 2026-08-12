@@ -8,7 +8,7 @@ import uuid
 from datetime import date as date_type
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, ForeignKey, String
+from sqlalchemy import ARRAY, Date, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,6 +35,9 @@ class CalendarActivity(UUIDPKMixin, TimestampMixin, Base):
     )
     date: Mapped[date_type] = mapped_column(Date, nullable=False)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Same idea as ScheduledActivity.equipment_checked -- which of the
+    # activity's equipment items THIS pinned use has confirmed ready.
+    equipment_checked: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
 
     layer: Mapped["Layer"] = relationship()
     activity: Mapped["Activity"] = relationship()
