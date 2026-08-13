@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -185,6 +185,9 @@ export default function LayerDetailScreen() {
     <ThemedView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerBlock}>
+          <Link href="/">
+            <ThemedText type="linkPrimary">← לדף הבית</ThemedText>
+          </Link>
           {layer && (
             <EditableText
               value={layer.name}
