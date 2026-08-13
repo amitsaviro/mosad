@@ -51,6 +51,23 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
 }
 
+// The Sunday (Israeli week start) of "today, shifted by weekOffset
+// weeks" -- local time, since it's about which real calendar week the
+// counselor is currently looking at, not stable ISO-string iteration.
+export function startOfWeekIso(weekOffset = 0): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + weekOffset * 7);
+  return `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}`;
+}
+
+// Day/month only, no year and no leading zeros -- for labeling each
+// weekday column in the weekly schedule with its real date, where the
+// year is implied by context and full padding would just add noise.
+export function toIsraeliShortDate(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${d}/${m}`;
+}
+
 // Display format only -- API calls and query params keep using the
 // ISO "YYYY-MM-DD" the backend expects; this is purely for what the
 // user reads/types, matching the day/month/year convention used in Israel.

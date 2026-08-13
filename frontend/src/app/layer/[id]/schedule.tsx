@@ -25,6 +25,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ConfirmButton } from '@/components/confirm-button';
 import { MonthCalendar } from '@/components/month-calendar';
+import { SessionReportModal } from '@/components/session-report-modal';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -33,7 +34,16 @@ import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ActivityType, CalendarActivity, DayOfWeek, Holiday, KeyDate, Layer, ScheduledActivity } from '@/types';
-import { buildItemsByDate, parseIsoDate, toIsraeliDate, todayIso } from '@/utils/calendar';
+import {
+  addDaysUtc,
+  buildItemsByDate,
+  formatIsoDate,
+  parseIsoDate,
+  startOfWeekIso,
+  toIsraeliDate,
+  toIsraeliShortDate,
+  todayIso,
+} from '@/utils/calendar';
 
 function toApiTime(text: string): string | null {
   const match = text.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
@@ -71,6 +81,11 @@ export default function LayerScheduleScreen() {
   const [otherLayers, setOtherLayers] = useState<Layer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [viewActivityId, setViewActivityId] = useState<string | null>(null);
+  const [sessionReportContext, setSessionReportContext] = useState<{
+    activityName: string;
+    date: string;
+  } | null>(null);
+  const [weekOffset, setWeekOffset] = useState(0);
 
   // Weekly recurring schedule form.
   const [day, setDay] = useState<DayOfWeek>('sunday');
@@ -135,6 +150,19 @@ export default function LayerScheduleScreen() {
     () => buildItemsByDate(holidays, keyDates, myCalendarActivities),
     [holidays, keyDates, myCalendarActivities]
   );
+
+  // Real calendar dates for the currently-viewed week, so the weekly
+  // recurring template (day-of-week only, no date of its own) can show
+  // "which actual day" each block falls on and hand that date to the
+  // attendance/notes modal instead of an arbitrary "today".
+  const weekDates = useMemo(() => {
+    const start = parseIsoDate(startOfWeekIso(weekOffset));
+    const map = {} as Record<DayOfWeek, string>;
+    DAYS_OF_WEEK.forEach((d, i) => {
+      map[d] = formatIsoDate(addDaysUtc(start, i));
+    });
+    return map;
+  }, [weekOffset]);
 
   function sharedLayerNames(entry: CalendarActivity): string[] {
     const siblings = allCalendarActivities.filter(
@@ -362,9 +390,36 @@ export default function LayerScheduleScreen() {
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
 
-        <ThemedText type="subtitle" style={styles.rtlText}>
-          לוח שבועי
-        </ThemedText>
+        <View style={styles.weekNavRow}>
+          <ThemedText type="subtitle" style={styles.rtlText}>
+            לוח שבועי · {toIsraeliShortDate(weekDates.sunday)}–{toIsraeliShortDate(weekDates.saturday)}
+          </ThemedText>
+          <View style={styles.weekNavButtons}>
+            <Button
+              label="→ שבוע קודם"
+              variant="ghost"
+              size="small"
+              fullWidth={false}
+              onPress={() => setWeekOffset((w) => w - 1)}
+            />
+            {weekOffset !== 0 && (
+              <Button
+                label="השבוע הנוכחי"
+                variant="secondary"
+                size="small"
+                fullWidth={false}
+                onPress={() => setWeekOffset(0)}
+              />
+            )}
+            <Button
+              label="שבוע הבא ←"
+              variant="ghost"
+              size="small"
+              fullWidth={false}
+              onPress={() => setWeekOffset((w) => w + 1)}
+            />
+          </View>
+        </View>
 
         {layer?.can_manage && (
           <Card style={styles.card}>
@@ -464,7 +519,7 @@ export default function LayerScheduleScreen() {
         {DAYS_OF_WEEK.map((d) => (
           <View key={d} style={styles.dayBlock}>
             <ThemedText type="subtitle" style={styles.rtlText}>
-              יום {DAY_OF_WEEK_LABELS[d]}
+              יום {DAY_OF_WEEK_LABELS[d]} {toIsraeliShortDate(weekDates[d])}
             </ThemedText>
             {entriesByDay[d].length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
@@ -529,6 +584,20 @@ export default function LayerScheduleScreen() {
                             fullWidth={false}
                             onPress={() => setViewActivityId(entry.activity_id)}
                           />
+                          {entry.can_manage && (
+                            <Button
+                              label="📋 נוכחות והערות"
+                              variant="secondary"
+                              size="small"
+                              fullWidth={false}
+                              onPress={() =>
+                                setSessionReportContext({
+                                  activityName: entry.activity_name,
+                                  date: weekDates[entry.day_of_week],
+                                })
+                              }
+                            />
+                          )}
                           {entry.can_manage && (
                             <ConfirmButton label="הסר מהלוח" onConfirm={() => handleDelete(entry.id)} />
                           )}
@@ -640,6 +709,17 @@ export default function LayerScheduleScreen() {
                         fullWidth={false}
                         onPress={() => setViewActivityId(a.activity_id)}
                       />
+                      {a.can_manage && (
+                        <Button
+                          label="📋 נוכחות והערות"
+                          variant="secondary"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() =>
+                            setSessionReportContext({ activityName: a.activity_name, date: a.date })
+                          }
+                        />
+                      )}
                       {a.can_manage && (
                         <ConfirmButton label="הסר" onConfirm={() => handleDeleteCalendarActivity(a.id)} />
                       )}
@@ -766,6 +846,12 @@ export default function LayerScheduleScreen() {
         <MonthCalendar itemsByDate={itemsByDate} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
       </ScrollView>
       <ActivityDetailModal activityId={viewActivityId} onClose={() => setViewActivityId(null)} />
+      <SessionReportModal
+        layerId={sessionReportContext ? id : null}
+        activityName={sessionReportContext?.activityName ?? ''}
+        initialDate={sessionReportContext?.date ?? todayIso()}
+        onClose={() => setSessionReportContext(null)}
+      />
     </ThemedView>
   );
 }
@@ -792,6 +878,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: Spacing.three,
+  },
+  weekNavRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  weekNavButtons: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   rtlText: {
     textAlign: 'right',

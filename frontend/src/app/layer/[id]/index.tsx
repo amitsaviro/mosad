@@ -213,7 +213,7 @@ export default function LayerDetailScreen() {
               onPress={() => router.push(`/layer/${id}/schedule`)}
             />
             <Button
-              label="נוכחות →"
+              label="מעקב חניכים →"
               variant="secondary"
               size="small"
               fullWidth={false}
