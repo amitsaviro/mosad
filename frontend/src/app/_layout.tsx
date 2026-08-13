@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import Head from 'expo-router/head';
 import { useEffect } from 'react';
 import { ActivityIndicator, useColorScheme } from 'react-native';
 
@@ -57,6 +58,9 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Head>
+        <title>Instructor</title>
+      </Head>
       <AuthProvider>
         <RootNavigator />
       </AuthProvider>

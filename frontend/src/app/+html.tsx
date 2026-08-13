@@ -1,0 +1,21 @@
+// Customizes the root HTML document for web (title, favicon) --
+// Expo Router's default dev-server template leaves both blank, so
+// without this the browser tab shows no title and a blank icon.
+import { ScrollViewStyleReset } from 'expo-router/html';
+import { type PropsWithChildren } from 'react';
+
+export default function Root({ children }: PropsWithChildren) {
+  return (
+    <html lang="he">
+      <head>
+        <meta charSet="utf-8" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <title>Instructor</title>
+        <link rel="icon" href="/favicon.png" />
+        <ScrollViewStyleReset />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
