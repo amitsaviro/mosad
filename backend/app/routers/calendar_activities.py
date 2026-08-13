@@ -1,7 +1,8 @@
-# Institution-wide read + delete for dated calendar activities -- same
-# split as routers/schedule.py: creation is nested under
-# /layers/{layer_id}/calendar-activities (needs a layer to attach to),
-# but once you have an entry_id you don't need the layer_id in the URL.
+# Institution-wide read + update/delete for dated calendar activities
+# (this also backs the weekly grid view, not just the year calendar):
+# creation is nested under /layers/{layer_id}/calendar-activities (needs
+# a layer to attach to), but once you have an entry_id you don't need
+# the layer_id in the URL.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 

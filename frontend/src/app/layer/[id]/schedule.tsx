@@ -13,12 +13,6 @@ import { ApiError } from '@/api/client';
 import { listHolidays } from '@/api/holidays';
 import { listKeyDates } from '@/api/keyDates';
 import { getLayer, listLayers } from '@/api/layers';
-import {
-  createScheduleEntry,
-  deleteScheduleEntry,
-  listSchedule,
-  updateScheduleEntry,
-} from '@/api/schedule';
 import { ActivityDetailModal } from '@/components/activity-detail-modal';
 import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
@@ -33,7 +27,7 @@ import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from '@/constants/activity';
 import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ActivityType, CalendarActivity, DayOfWeek, Holiday, KeyDate, Layer, ScheduledActivity } from '@/types';
+import { ActivityType, CalendarActivity, DayOfWeek, Holiday, KeyDate, Layer } from '@/types';
 import {
   addDaysUtc,
   buildItemsByDate,
@@ -56,11 +50,15 @@ function displayTime(apiTime: string): string {
   return apiTime.slice(0, 5);
 }
 
+function hasStartTime(entry: CalendarActivity): entry is CalendarActivity & { start_time: string } {
+  return entry.start_time !== null;
+}
+
 // Groups entries that share the exact same start_time -- these were
 // intentionally created together as one composite block (e.g. an
 // opener followed by a main activity, both "at 16:00").
-function groupByStartTime(entries: ScheduledActivity[]): ScheduledActivity[][] {
-  const groups: ScheduledActivity[][] = [];
+function groupByStartTime<T extends { start_time: string }>(entries: T[]): T[][] {
+  const groups: T[][] = [];
   for (const entry of entries) {
     const last = groups[groups.length - 1];
     if (last && last[0].start_time === entry.start_time) {
@@ -77,7 +75,6 @@ export default function LayerScheduleScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [layer, setLayer] = useState<Layer | null>(null);
-  const [entries, setEntries] = useState<ScheduledActivity[]>([]);
   const [otherLayers, setOtherLayers] = useState<Layer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [viewActivityId, setViewActivityId] = useState<string | null>(null);
@@ -87,7 +84,8 @@ export default function LayerScheduleScreen() {
   } | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
 
-  // Weekly recurring schedule form.
+  // Add-to-weekly-grid form -- "day" picks which weekday column of the
+  // currently-viewed week (weekOffset) the new entry lands on.
   const [day, setDay] = useState<DayOfWeek>('sunday');
   const [timeText, setTimeText] = useState('');
   const [durationText, setDurationText] = useState('');
@@ -117,23 +115,21 @@ export default function LayerScheduleScreen() {
   async function loadData() {
     setError(null);
     try {
-      const [fetchedLayer, fetchedEntries, fetchedLayers, fetchedHolidays, fetchedKeyDates, fetchedCalActivities] =
+      const [fetchedLayer, fetchedLayers, fetchedHolidays, fetchedKeyDates, fetchedCalActivities] =
         await Promise.all([
           getLayer(id),
-          listSchedule(id),
           listLayers(),
           listHolidays(),
           listKeyDates(),
           listCalendarActivities(),
         ]);
       setLayer(fetchedLayer);
-      setEntries(fetchedEntries);
       setOtherLayers(fetchedLayers.filter((l) => l.can_manage && l.id !== id));
       setHolidays(fetchedHolidays);
       setKeyDates(fetchedKeyDates);
       setAllCalendarActivities(fetchedCalActivities);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'טעינת הלוח נכשלה');
+      setError(err instanceof ApiError ? err.message : 'טעינת הלוח נכשל');
     }
   }
 
@@ -151,10 +147,10 @@ export default function LayerScheduleScreen() {
     [holidays, keyDates, myCalendarActivities]
   );
 
-  // Real calendar dates for the currently-viewed week, so the weekly
-  // recurring template (day-of-week only, no date of its own) can show
-  // "which actual day" each block falls on and hand that date to the
-  // attendance/notes modal instead of an arbitrary "today".
+  // Real calendar dates for the currently-viewed week -- the weekly
+  // grid is just these dated entries grouped by weekday column, so
+  // paging to a week with nothing pinned to it shows empty instead of
+  // a recurring template repeating forever.
   const weekDates = useMemo(() => {
     const start = parseIsoDate(startOfWeekIso(weekOffset));
     const map = {} as Record<DayOfWeek, string>;
@@ -163,6 +159,22 @@ export default function LayerScheduleScreen() {
     });
     return map;
   }, [weekOffset]);
+
+  const weeklyEntriesByDay: Record<DayOfWeek, (CalendarActivity & { start_time: string })[]> = {
+    sunday: [],
+    monday: [],
+    tuesday: [],
+    wednesday: [],
+    thursday: [],
+    friday: [],
+    saturday: [],
+  };
+  const timedEntries = myCalendarActivities.filter(hasStartTime);
+  DAYS_OF_WEEK.forEach((d) => {
+    weeklyEntriesByDay[d] = timedEntries
+      .filter((a) => a.date === weekDates[d])
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  });
 
   function sharedLayerNames(entry: CalendarActivity): string[] {
     const siblings = allCalendarActivities.filter(
@@ -188,7 +200,7 @@ export default function LayerScheduleScreen() {
       return;
     }
     setError(null);
-    router.push(`/activities?pickForLayerId=${id}&pickDay=${day}&pickTime=${apiTime}`);
+    router.push(`/activities?pickForLayerId=${id}&pickCalendarDate=${weekDates[day]}&pickTime=${apiTime}`);
   }
 
   async function handleCreateAndSchedule() {
@@ -210,9 +222,9 @@ export default function LayerScheduleScreen() {
         description: newDescription.trim(),
         activity_type: newType,
       });
-      await createScheduleEntry(id, {
+      await createCalendarActivity(id, {
         activity_id: created.id,
-        day_of_week: day,
+        date: weekDates[day],
         start_time: apiTime,
         duration_minutes: durationText.trim() ? Number(durationText.trim()) : undefined,
         notes: notes.trim() || undefined,
@@ -223,28 +235,6 @@ export default function LayerScheduleScreen() {
       setError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
     } finally {
       setIsSaving(false);
-    }
-  }
-
-  async function handleDelete(entryId: string) {
-    try {
-      await deleteScheduleEntry(entryId);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'המחיקה נכשלה');
-    }
-  }
-
-  async function handleToggleEquipment(entry: ScheduledActivity, item: string) {
-    const checked = entry.equipment_checked.includes(item);
-    const nextChecked = checked
-      ? entry.equipment_checked.filter((i) => i !== item)
-      : [...entry.equipment_checked, item];
-    try {
-      await updateScheduleEntry(entry.id, { equipment_checked: nextChecked });
-      await loadData();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'העדכון נכשל');
     }
   }
 
@@ -339,17 +329,6 @@ export default function LayerScheduleScreen() {
     }
   }
 
-  const entriesByDay: Record<DayOfWeek, ScheduledActivity[]> = {
-    sunday: [],
-    monday: [],
-    tuesday: [],
-    wednesday: [],
-    thursday: [],
-    friday: [],
-    saturday: [],
-  };
-  entries.forEach((e) => entriesByDay[e.day_of_week].push(e));
-
   const selectedItems = selectedDate ? (itemsByDate[selectedDate] ?? []) : [];
   const selectedWeekdayLabel = selectedDate
     ? DAY_OF_WEEK_LABELS[DAYS_OF_WEEK[parseIsoDate(selectedDate).getUTCDay()]]
@@ -434,7 +413,7 @@ export default function LayerScheduleScreen() {
               {DAYS_OF_WEEK.map((d) => (
                 <Button
                   key={d}
-                  label={DAY_OF_WEEK_LABELS[d]}
+                  label={`${DAY_OF_WEEK_LABELS[d]} ${toIsraeliShortDate(weekDates[d])}`}
                   size="small"
                   fullWidth={false}
                   variant={day === d ? 'primary' : 'ghost'}
@@ -521,13 +500,13 @@ export default function LayerScheduleScreen() {
             <ThemedText type="subtitle" style={styles.rtlText}>
               יום {DAY_OF_WEEK_LABELS[d]} {toIsraeliShortDate(weekDates[d])}
             </ThemedText>
-            {entriesByDay[d].length === 0 ? (
+            {weeklyEntriesByDay[d].length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
                 אין פעילויות משובצות
               </ThemedText>
             ) : (
               <View style={styles.list}>
-                {groupByStartTime(entriesByDay[d]).map((block) => (
+                {groupByStartTime(weeklyEntriesByDay[d]).map((block) => (
                   <View
                     key={block[0].id}
                     style={[styles.blockCard, block.length > 1 && { borderColor: theme.border }]}
@@ -567,7 +546,9 @@ export default function LayerScheduleScreen() {
                                   type="small"
                                   style={styles.rtlText}
                                   onPress={
-                                    entry.can_manage ? () => handleToggleEquipment(entry, item) : undefined
+                                    entry.can_manage
+                                      ? () => handleToggleCalendarEquipment(entry, item)
+                                      : undefined
                                   }
                                 >
                                   {checked ? '☑' : '☐'} {item}
@@ -591,15 +572,15 @@ export default function LayerScheduleScreen() {
                               size="small"
                               fullWidth={false}
                               onPress={() =>
-                                setSessionReportContext({
-                                  activityName: entry.activity_name,
-                                  date: weekDates[entry.day_of_week],
-                                })
+                                setSessionReportContext({ activityName: entry.activity_name, date: entry.date })
                               }
                             />
                           )}
                           {entry.can_manage && (
-                            <ConfirmButton label="הסר מהלוח" onConfirm={() => handleDelete(entry.id)} />
+                            <ConfirmButton
+                              label="הסר מהלוח"
+                              onConfirm={() => handleDeleteCalendarActivity(entry.id)}
+                            />
                           )}
                         </View>
                       </Card>
@@ -669,6 +650,7 @@ export default function LayerScheduleScreen() {
                       <Badge label={ACTIVITY_TYPE_LABELS[a.activity_type]} tone="primary" />
                       <ThemedText type="smallBold" style={styles.rtlText}>
                         {a.activity_name}
+                        {a.start_time ? ` · ${displayTime(a.start_time)}` : ''}
                       </ThemedText>
                     </View>
                     {shared.length > 0 && (

@@ -14,7 +14,6 @@ from app.models.calendar_activity import CalendarActivity
 from app.models.layer import Layer
 from app.models.participant import Participant
 from app.models.participant_note import ParticipantNote
-from app.models.scheduled_activity import ScheduledActivity
 from app.models.user import User, UserRole
 from app.services.layer_service import user_can_manage_layer, user_can_view_layer
 
@@ -152,7 +151,7 @@ def get_manageable_note(
 ) -> ParticipantNote:
     """For DELETE /notes/{id} -- requires WRITE access to the note's
     participant's layer (any layer manager, not just the note's author,
-    matching the same pattern as schedule/calendar-activity removal)."""
+    matching the same pattern as calendar-activity removal)."""
     not_found = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="ההערה לא נמצאה"
     )
@@ -170,34 +169,13 @@ def get_manageable_note(
     return note
 
 
-def get_manageable_schedule_entry(
-    entry_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> ScheduledActivity:
-    """For routes keyed by a schedule entry_id (PATCH/DELETE) — requires
-    WRITE access to the entry's own layer, same pattern as
-    get_accessible_participant."""
-    not_found = HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail="השיבוץ לא נמצא"
-    )
-    entry = db.get(ScheduledActivity, entry_id)
-    if entry is None:
-        raise not_found
-
-    layer = db.get(Layer, entry.layer_id)
-    if layer is None or not user_can_manage_layer(db, current_user, layer):
-        raise not_found
-    return entry
-
-
 def get_manageable_calendar_activity(
     entry_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CalendarActivity:
-    """For DELETE /calendar-activities/{id} -- requires WRITE access to
-    the entry's own layer, same pattern as get_manageable_schedule_entry."""
+    """For PATCH/DELETE /calendar-activities/{id} -- requires WRITE
+    access to the entry's own layer, same pattern as get_accessible_participant."""
     not_found = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="הפעילות בלוח השנה לא נמצאה"
     )

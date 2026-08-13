@@ -1,7 +1,7 @@
 # Only DELETE lives here (not under /participants/{id}/notes) -- same
-# split as routers/schedule.py: once you have a note_id you don't need
-# its participant_id in the URL, since get_manageable_note resolves
-# access from the note's own participant/layer internally.
+# split as routers/calendar_activities.py: once you have a note_id you
+# don't need its participant_id in the URL, since get_manageable_note
+# resolves access from the note's own participant/layer internally.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 

@@ -14,7 +14,6 @@ from app.schemas.attendance import AttendanceMarkInput, AttendanceOut
 from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut
 from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
-from app.schemas.scheduled_activity import ScheduledActivityCreate, ScheduledActivityOut
 from app.schemas.user import UserOut
 from app.services.attendance_service import list_attendance_for_date, mark_attendance, to_attendance_out
 from app.services.auth_service import build_user_out
@@ -31,11 +30,6 @@ from app.services.layer_service import (
     update_layer,
 )
 from app.services.participant_service import create_participant, list_participants
-from app.services.scheduled_activity_service import (
-    create_scheduled_activity,
-    list_scheduled_activities,
-    to_scheduled_activity_out,
-)
 
 router = APIRouter(prefix="/layers", tags=["layers"])
 
@@ -159,27 +153,6 @@ def list_participants_endpoint(
     """Read-only viewing of another institution layer's roster is
     allowed (get_viewable_layer), even though editing it is not."""
     return list_participants(db, layer)
-
-
-@router.post("/{layer_id}/schedule", response_model=ScheduledActivityOut, status_code=201)
-def create_scheduled_activity_endpoint(
-    payload: ScheduledActivityCreate,
-    layer: Layer = Depends(get_manageable_layer),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    entry = create_scheduled_activity(db, current_user, layer, payload)
-    return to_scheduled_activity_out(db, current_user, entry)
-
-
-@router.get("/{layer_id}/schedule", response_model=list[ScheduledActivityOut])
-def list_scheduled_activities_endpoint(
-    layer: Layer = Depends(get_viewable_layer),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    entries = list_scheduled_activities(db, layer)
-    return [to_scheduled_activity_out(db, current_user, e) for e in entries]
 
 
 @router.post("/{layer_id}/calendar-activities", response_model=CalendarActivityOut, status_code=201)

@@ -6,7 +6,6 @@ import { addComment, addRating, deleteActivity, getActivity, listComments, listR
 import { createCalendarActivity } from '@/api/calendarActivities';
 import { ApiError } from '@/api/client';
 import { listLayers } from '@/api/layers';
-import { createScheduleEntry } from '@/api/schedule';
 import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -23,12 +22,11 @@ import {
 import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
 import { Activity, ActivityComment, ActivityRating, DayOfWeek, Layer } from '@/types';
-import { toIsraeliDate } from '@/utils/calendar';
+import { addDaysUtc, formatIsoDate, parseIsoDate, startOfWeekIso, toIsraeliDate } from '@/utils/calendar';
 
 type PickParams = {
   id: string;
   pickForLayerId?: string;
-  pickDay?: DayOfWeek;
   pickTime?: string;
   pickCalendarDate?: string;
   pickShareLayerIds?: string;
@@ -41,13 +39,20 @@ function toApiTime(text: string): string | null {
   return `${hours.padStart(2, '0')}:${minutes}:00`;
 }
 
+// This real current week's date for a given weekday -- used by the
+// standalone "add to schedule" form below, which (unlike the weekly
+// grid on the layer's own schedule page) isn't tied to any specific
+// week being browsed, so it always targets the actual current week.
+function currentWeekDateFor(dayOfWeek: DayOfWeek): string {
+  const start = parseIsoDate(startOfWeekIso(0));
+  return formatIsoDate(addDaysUtc(start, DAYS_OF_WEEK.indexOf(dayOfWeek)));
+}
+
 export default function ActivityDetailScreen() {
-  const { id, pickForLayerId, pickDay, pickTime, pickCalendarDate, pickShareLayerIds } =
+  const { id, pickForLayerId, pickTime, pickCalendarDate, pickShareLayerIds } =
     useLocalSearchParams<PickParams>();
   const router = useRouter();
-  const isWeeklyPicking = !!pickForLayerId && !!pickDay && !!pickTime;
-  const isCalendarPicking = !!pickForLayerId && !!pickCalendarDate;
-  const isPicking = isWeeklyPicking || isCalendarPicking;
+  const isPicking = !!pickForLayerId && !!pickCalendarDate;
   const shareLayerIds = pickShareLayerIds ? pickShareLayerIds.split(',').filter(Boolean) : [];
   const [isAddingToSlot, setIsAddingToSlot] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -127,23 +132,18 @@ export default function ActivityDetailScreen() {
   }
 
   async function handleAddToPickedSlot() {
-    if (!pickForLayerId) return;
+    if (!pickForLayerId || !pickCalendarDate) return;
     setIsAddingToSlot(true);
     setSlotError(null);
     try {
-      if (isCalendarPicking && pickCalendarDate) {
-        for (const layerId of [pickForLayerId, ...shareLayerIds]) {
-          await createCalendarActivity(layerId, { activity_id: id, date: pickCalendarDate });
-        }
-        router.replace(`/layer/${pickForLayerId}/schedule`);
-      } else if (isWeeklyPicking && pickDay && pickTime) {
-        await createScheduleEntry(pickForLayerId, {
+      for (const layerId of [pickForLayerId, ...shareLayerIds]) {
+        await createCalendarActivity(layerId, {
           activity_id: id,
-          day_of_week: pickDay,
-          start_time: pickTime,
+          date: pickCalendarDate,
+          start_time: pickTime || undefined,
         });
-        router.replace(`/layer/${pickForLayerId}/schedule`);
       }
+      router.replace(`/layer/${pickForLayerId}/schedule`);
     } catch (err) {
       setSlotError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
       setIsAddingToSlot(false);
@@ -173,9 +173,9 @@ export default function ActivityDetailScreen() {
     let successCount = 0;
     for (const layerId of scheduleLayerIds) {
       try {
-        await createScheduleEntry(layerId, {
+        await createCalendarActivity(layerId, {
           activity_id: id,
-          day_of_week: scheduleDay,
+          date: currentWeekDateFor(scheduleDay),
           start_time: apiTime,
           notes: scheduleNotes.trim() || undefined,
         });
@@ -255,11 +255,9 @@ export default function ActivityDetailScreen() {
         {isPicking && (
           <Card style={styles.pickBanner}>
             <ThemedText type="smallBold" style={styles.rtlText}>
-              {isWeeklyPicking
-                ? `שיבוץ ליום ${DAY_OF_WEEK_LABELS[pickDay!]} בשעה ${pickTime!.slice(0, 5)}`
-                : `שיבוץ לתאריך ${toIsraeliDate(pickCalendarDate!)}${
-                    shareLayerIds.length > 0 ? ` (משותפת עם ${shareLayerIds.length} שכבות נוספות)` : ''
-                  }`}
+              {`שיבוץ לתאריך ${toIsraeliDate(pickCalendarDate!)}${
+                pickTime ? ` בשעה ${pickTime.slice(0, 5)}` : ''
+              }${shareLayerIds.length > 0 ? ` (משותפת עם ${shareLayerIds.length} שכבות נוספות)` : ''}`}
             </ThemedText>
             {slotError && <ThemedText themeColor="danger" style={styles.rtlText}>{slotError}</ThemedText>}
             <Button label="+ הוסף למשבצת שנבחרה" onPress={handleAddToPickedSlot} loading={isAddingToSlot} />

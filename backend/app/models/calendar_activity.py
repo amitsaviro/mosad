@@ -1,14 +1,16 @@
 # Pins an existing repository Activity onto a *specific real date* for
 # a specific layer -- e.g. "the Hanukkah party is on Dec 10th for שכבה
-# ז'". Separate from ScheduledActivity (which is a recurring weekly
-# template, no real date): this is a one-off dated event, shown on the
-# shared year overview, and the natural place to rate the activity once
-# that date has actually passed.
+# ז'". This is the only scheduling primitive in the app: both the
+# weekly grid (grouped by the real dates of whichever week is being
+# viewed) and the year calendar render off the same dated rows, so
+# paging to a week/date with nothing pinned to it is naturally empty
+# instead of a recurring template repeating forever.
 import uuid
 from datetime import date as date_type
+from datetime import time as time_type
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ARRAY, Date, ForeignKey, String
+from sqlalchemy import ARRAY, Date, ForeignKey, Integer, String, Time
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,9 +36,14 @@ class CalendarActivity(UUIDPKMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     date: Mapped[date_type] = mapped_column(Date, nullable=False)
+    # Optional -- a dated one-off event (e.g. a trip) may not need a
+    # specific time, but a weekly-grid slot ("Sunday 16:00") does.
+    start_time: Mapped[time_type | None] = mapped_column(Time, nullable=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
-    # Same idea as ScheduledActivity.equipment_checked -- which of the
-    # activity's equipment items THIS pinned use has confirmed ready.
+    # Which of the activity's equipment items THIS pinned use has
+    # confirmed ready -- separate from the activity's own equipment
+    # list, since "do we have it" is per dated use, not global.
     equipment_checked: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
 
     layer: Mapped["Layer"] = relationship()

@@ -12,7 +12,6 @@ from app.routers import (
     layers,
     notes,
     participants,
-    schedule,
     users,
 )
 
@@ -41,7 +40,6 @@ app.include_router(key_dates.router, prefix="/api/v1")
 app.include_router(layers.router, prefix="/api/v1")
 app.include_router(notes.router, prefix="/api/v1")
 app.include_router(participants.router, prefix="/api/v1")
-app.include_router(schedule.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 
 

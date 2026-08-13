@@ -14,7 +14,6 @@ from app.models.institution_key_date import InstitutionKeyDate
 from app.models.layer import Layer
 from app.models.participant import Participant
 from app.models.participant_note import ParticipantNote
-from app.models.scheduled_activity import DayOfWeek, ScheduledActivity
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -29,8 +28,6 @@ __all__ = [
     "ActivityAttachment",
     "ActivityRating",
     "ActivityComment",
-    "ScheduledActivity",
-    "DayOfWeek",
     "InstitutionKeyDate",
     "CalendarActivity",
     "Attendance",

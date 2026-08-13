@@ -187,3 +187,75 @@ def test_deleting_activity_removes_its_calendar_entries(client):
 
     listed = client.get("/api/v1/calendar-activities", headers=_auth_headers(admin_token))
     assert listed.json() == []
+
+
+def test_timed_slot_roundtrips_start_time_and_duration(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "caltimed@test.com")
+    activity = _create_activity(client, admin_token, duration_minutes=45, equipment=["חבל", "טבעות"])
+    today = date.today().isoformat()
+
+    entry = _pin(
+        client, admin_token, layer["id"], activity["id"], today, start_time="16:00:00"
+    ).json()
+
+    assert entry["start_time"] == "16:00:00"
+    assert entry["duration_minutes"] == 45
+    assert entry["equipment"] == ["חבל", "טבעות"]
+
+
+def test_overlapping_timed_slot_on_same_date_is_rejected(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "caloverlap@test.com")
+    activity = _create_activity(client, admin_token, duration_minutes=60)
+    today = date.today().isoformat()
+
+    first = _pin(client, admin_token, layer["id"], activity["id"], today, start_time="16:00:00")
+    assert first.status_code == 201
+
+    overlapping = _pin(client, admin_token, layer["id"], activity["id"], today, start_time="16:30:00")
+    assert overlapping.status_code == 409
+
+    non_overlapping = _pin(client, admin_token, layer["id"], activity["id"], today, start_time="17:00:00")
+    assert non_overlapping.status_code == 201
+
+
+def test_same_start_time_is_treated_as_composite_block(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "calcomposite@test.com")
+    opener = _create_activity(client, admin_token, name="פתיחה", activity_type="opener", duration_minutes=15)
+    main = _create_activity(client, admin_token, name="מרכזית", activity_type="main", duration_minutes=45)
+    today = date.today().isoformat()
+
+    first = _pin(client, admin_token, layer["id"], opener["id"], today, start_time="16:00:00")
+    assert first.status_code == 201
+
+    # Exact same start time = an intentional composite block (opener +
+    # main together), not a double-booking -- must be allowed.
+    second = _pin(client, admin_token, layer["id"], main["id"], today, start_time="16:00:00")
+    assert second.status_code == 201
+
+
+def test_untimed_entries_do_not_conflict(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "caluntimed@test.com")
+    activity = _create_activity(client, admin_token)
+    today = date.today().isoformat()
+
+    first = _pin(client, admin_token, layer["id"], activity["id"], today)
+    assert first.status_code == 201
+
+    second = _pin(client, admin_token, layer["id"], activity["id"], today)
+    assert second.status_code == 201
+
+
+def test_moving_slot_into_conflict_is_rejected(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "calmoveconflict@test.com")
+    activity = _create_activity(client, admin_token, duration_minutes=30)
+    today = date.today().isoformat()
+    _pin(client, admin_token, layer["id"], activity["id"], today, start_time="16:00:00")
+    second = _pin(client, admin_token, layer["id"], activity["id"], today, start_time="17:00:00").json()
+
+    response = client.patch(
+        f"/api/v1/calendar-activities/{second['id']}",
+        json={"start_time": "16:15:00"},
+        headers=_auth_headers(admin_token),
+    )
+
+    assert response.status_code == 409
