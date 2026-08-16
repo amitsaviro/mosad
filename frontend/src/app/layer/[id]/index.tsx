@@ -2,6 +2,7 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { getChatUnreadCount } from '@/api/chat';
 import { ApiError } from '@/api/client';
 import {
   deleteLayer,
@@ -23,7 +24,7 @@ import { ParticipantNotesModal } from '@/components/participant-notes-modal';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { Layer, Participant, User } from '@/types';
 import { fromIsraeliDate, nextBirthdayInfo, toIsraeliDate } from '@/utils/calendar';
 
@@ -43,6 +44,7 @@ export default function LayerDetailScreen() {
   const [editingDobId, setEditingDobId] = useState<string | null>(null);
   const [dobDraft, setDobDraft] = useState('');
   const [birthdayPopupDismissed, setBirthdayPopupDismissed] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const isAdmin = user?.role === 'institution_admin';
 
@@ -78,6 +80,21 @@ export default function LayerDetailScreen() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Light polling just for the chat badge -- separate from loadData so
+  // a chat hiccup never blanks out the rest of the page.
+  useEffect(() => {
+    async function pollUnread() {
+      try {
+        setChatUnreadCount((await getChatUnreadCount(id)).count);
+      } catch {
+        // Silent -- a missed badge update isn't worth an error banner.
+      }
+    }
+    pollUnread();
+    const interval = setInterval(pollUnread, 20000);
+    return () => clearInterval(interval);
   }, [id]);
 
   async function handleAddParticipant() {
@@ -222,6 +239,22 @@ export default function LayerDetailScreen() {
               fullWidth={false}
               onPress={() => router.push(`/layer/${id}/attendance`)}
             />
+            <View style={styles.chatButtonWrap}>
+              <Button
+                label="💬 צ׳אט"
+                variant="secondary"
+                size="small"
+                fullWidth={false}
+                onPress={() => router.push(`/layer/${id}/chat`)}
+              />
+              {chatUnreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <ThemedText type="small" style={styles.unreadBadgeText}>
+                    {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                  </ThemedText>
+                </View>
+              )}
+            </View>
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>
@@ -442,6 +475,26 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     flexWrap: 'wrap',
     marginTop: Spacing.one,
+  },
+  chatButtonWrap: {
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: Colors.light.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    lineHeight: 14,
   },
   inactiveText: {
     opacity: 0.5,

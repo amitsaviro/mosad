@@ -20,6 +20,13 @@ from app.schemas.activity import (
     ActivityRatingOut,
     ActivityUpdate,
 )
+from app.schemas.activity_message import ActivityMessageCreate, ActivityMessageOut, ActivityMessageThreadOut
+from app.services.activity_message_service import (
+    create_message,
+    list_thread,
+    list_threads_for_creator,
+    to_activity_message_out,
+)
 from app.services.activity_service import (
     add_comment,
     add_rating,
@@ -195,3 +202,43 @@ def list_comments_endpoint(
         )
         for c in activity.comments
     ]
+
+
+@router.post("/{activity_id}/messages", response_model=ActivityMessageOut, status_code=201)
+def send_activity_message_endpoint(
+    activity_id: uuid.UUID,
+    payload: ActivityMessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    activity = get_activity_or_404(db, activity_id)
+    message = create_message(db, current_user, activity, payload)
+    return to_activity_message_out(message)
+
+
+@router.get("/{activity_id}/messages", response_model=list[ActivityMessageOut])
+def list_activity_message_thread_endpoint(
+    activity_id: uuid.UUID,
+    with_user_id: uuid.UUID | None = Query(default=None, alias="with"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The thread between the current user and one other party. A
+    non-creator only ever has one possible thread (with the creator),
+    so `with` defaults to the creator; the creator has to specify which
+    asker's thread they want."""
+    activity = get_activity_or_404(db, activity_id)
+    other_user_id = with_user_id if with_user_id is not None else activity.creator_id
+    return [to_activity_message_out(m) for m in list_thread(db, activity, current_user, other_user_id)]
+
+
+@router.get("/{activity_id}/messages/threads", response_model=list[ActivityMessageThreadOut])
+def list_activity_message_threads_endpoint(
+    activity_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creator-only inbox: everyone who's messaged them about this activity."""
+    activity = get_activity_or_404(db, activity_id)
+    require_creator(current_user, activity)
+    return list_threads_for_creator(db, activity)

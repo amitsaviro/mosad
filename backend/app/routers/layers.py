@@ -12,12 +12,14 @@ from app.models.layer import Layer
 from app.models.user import User
 from app.schemas.attendance import AttendanceMarkInput, AttendanceOut
 from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivityOut
+from app.schemas.chat import ChatMessageCreate, ChatMessageOut, ChatUnreadCountOut
 from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
 from app.schemas.user import UserOut
 from app.services.attendance_service import list_attendance_for_date, mark_attendance, to_attendance_out
 from app.services.auth_service import build_user_out
 from app.services.calendar_activity_service import create_calendar_activity, to_calendar_activity_out
+from app.services.chat_service import count_unread, create_message, list_messages, mark_read, to_chat_message_out
 from app.services.group_service import create_layer, join_layer
 from app.services.layer_service import (
     assign_counselor,
@@ -185,3 +187,40 @@ def list_attendance_endpoint(
 ):
     records = list_attendance_for_date(db, layer, attendance_date)
     return [to_attendance_out(r) for r in records]
+
+
+@router.get("/{layer_id}/chat/messages", response_model=list[ChatMessageOut])
+def list_chat_messages_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    db: Session = Depends(get_db),
+):
+    return [to_chat_message_out(m) for m in list_messages(db, layer)]
+
+
+@router.post("/{layer_id}/chat/messages", response_model=ChatMessageOut, status_code=201)
+def create_chat_message_endpoint(
+    payload: ChatMessageCreate,
+    layer: Layer = Depends(get_manageable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    message = create_message(db, current_user, layer, payload)
+    return to_chat_message_out(message)
+
+
+@router.post("/{layer_id}/chat/mark-read", status_code=204)
+def mark_chat_read_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    mark_read(db, current_user, layer)
+
+
+@router.get("/{layer_id}/chat/unread-count", response_model=ChatUnreadCountOut)
+def chat_unread_count_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return ChatUnreadCountOut(layer_id=layer.id, count=count_unread(db, current_user, layer.id))

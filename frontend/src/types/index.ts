@@ -191,3 +191,29 @@ export type CalendarActivity = {
   is_past: boolean;
   created_at: string;
 };
+
+export type ChatMessage = {
+  id: string;
+  layer_id: string;
+  author_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
+};
+
+export type ActivityMessage = {
+  id: string;
+  activity_id: string;
+  sender_id: string;
+  sender_name: string;
+  recipient_id: string;
+  body: string;
+  created_at: string;
+};
+
+export type ActivityMessageThread = {
+  other_user_id: string;
+  other_user_name: string;
+  last_message: string;
+  last_message_at: string;
+};
