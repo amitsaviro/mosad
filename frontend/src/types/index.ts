@@ -144,6 +144,8 @@ export type ActivityComment = {
   user_id: string;
   user_name: string;
   body: string;
+  reply_to_id: string | null;
+  reply_to_user_name: string | null;
   created_at: string;
 };
 
@@ -201,19 +203,3 @@ export type ChatMessage = {
   created_at: string;
 };
 
-export type ActivityMessage = {
-  id: string;
-  activity_id: string;
-  sender_id: string;
-  sender_name: string;
-  recipient_id: string;
-  body: string;
-  created_at: string;
-};
-
-export type ActivityMessageThread = {
-  other_user_id: string;
-  other_user_name: string;
-  last_message: string;
-  last_message_at: string;
-};

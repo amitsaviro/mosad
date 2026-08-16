@@ -12,7 +12,9 @@ from app.models.activity import ActivityCategory, ActivityLocation, ActivityType
 from app.models.user import User
 from app.schemas.activity import (
     ActivityCommentCreate,
+    ActivityCommentNotificationOut,
     ActivityCommentOut,
+    ActivityCommentsUnreadCountOut,
     ActivityCreate,
     ActivityListOut,
     ActivityOut,
@@ -20,21 +22,19 @@ from app.schemas.activity import (
     ActivityRatingOut,
     ActivityUpdate,
 )
-from app.schemas.activity_message import ActivityMessageCreate, ActivityMessageOut, ActivityMessageThreadOut
-from app.services.activity_message_service import (
-    create_message,
-    list_thread,
-    list_threads_for_creator,
-    to_activity_message_out,
-)
 from app.services.activity_service import (
     add_comment,
     add_rating,
+    count_unread_comments,
     create_activity,
     delete_activity,
     get_activity_or_404,
     list_activities,
+    list_unread_comments,
+    mark_comments_read,
     require_creator,
+    to_activity_comment_notification_out,
+    to_activity_comment_out,
     to_activity_out,
     update_activity,
 )
@@ -63,6 +63,7 @@ def list_activities_endpoint(
     grade_max: int | None = Query(default=None, ge=1, le=12),
     group_size: int | None = Query(default=None, alias="group_size"),
     max_duration: int | None = None,
+    created_by_me: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -79,6 +80,7 @@ def list_activities_endpoint(
         grade_max=grade_max,
         group_size=group_size,
         max_duration=max_duration,
+        created_by=current_user.id if created_by_me else None,
         page=page,
         page_size=page_size,
     )
@@ -88,6 +90,33 @@ def list_activities_endpoint(
         page=page,
         page_size=page_size,
     )
+
+
+# Static routes ("/comments/...") declared before "/{activity_id}" so
+# they don't get swallowed by the dynamic path (FastAPI matches in
+# registration order, and a non-UUID segment there would just 422).
+@router.get("/comments/unread-count", response_model=ActivityCommentsUnreadCountOut)
+def activity_comments_unread_count_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return ActivityCommentsUnreadCountOut(count=count_unread_comments(db, current_user))
+
+
+@router.get("/comments/unread", response_model=list[ActivityCommentNotificationOut])
+def list_unread_activity_comments_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return [to_activity_comment_notification_out(c) for c in list_unread_comments(db, current_user)]
+
+
+@router.post("/comments/mark-read", status_code=204)
+def mark_activity_comments_read_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    mark_comments_read(db, current_user)
 
 
 @router.get("/{activity_id}", response_model=ActivityOut)
@@ -176,13 +205,7 @@ def add_comment_endpoint(
 ):
     activity = get_activity_or_404(db, activity_id)
     comment = add_comment(db, current_user, activity, payload)
-    return ActivityCommentOut(
-        id=comment.id,
-        user_id=comment.user_id,
-        user_name=comment.user.full_name,
-        body=comment.body,
-        created_at=comment.created_at,
-    )
+    return to_activity_comment_out(comment)
 
 
 @router.get("/{activity_id}/comments", response_model=list[ActivityCommentOut])
@@ -192,53 +215,4 @@ def list_comments_endpoint(
     db: Session = Depends(get_db),
 ):
     activity = get_activity_or_404(db, activity_id)
-    return [
-        ActivityCommentOut(
-            id=c.id,
-            user_id=c.user_id,
-            user_name=c.user.full_name,
-            body=c.body,
-            created_at=c.created_at,
-        )
-        for c in activity.comments
-    ]
-
-
-@router.post("/{activity_id}/messages", response_model=ActivityMessageOut, status_code=201)
-def send_activity_message_endpoint(
-    activity_id: uuid.UUID,
-    payload: ActivityMessageCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    activity = get_activity_or_404(db, activity_id)
-    message = create_message(db, current_user, activity, payload)
-    return to_activity_message_out(message)
-
-
-@router.get("/{activity_id}/messages", response_model=list[ActivityMessageOut])
-def list_activity_message_thread_endpoint(
-    activity_id: uuid.UUID,
-    with_user_id: uuid.UUID | None = Query(default=None, alias="with"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """The thread between the current user and one other party. A
-    non-creator only ever has one possible thread (with the creator),
-    so `with` defaults to the creator; the creator has to specify which
-    asker's thread they want."""
-    activity = get_activity_or_404(db, activity_id)
-    other_user_id = with_user_id if with_user_id is not None else activity.creator_id
-    return [to_activity_message_out(m) for m in list_thread(db, activity, current_user, other_user_id)]
-
-
-@router.get("/{activity_id}/messages/threads", response_model=list[ActivityMessageThreadOut])
-def list_activity_message_threads_endpoint(
-    activity_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Creator-only inbox: everyone who's messaged them about this activity."""
-    activity = get_activity_or_404(db, activity_id)
-    require_creator(current_user, activity)
-    return list_threads_for_creator(db, activity)
+    return [to_activity_comment_out(c) for c in activity.comments]

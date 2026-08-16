@@ -1,10 +1,10 @@
-// A single-month calendar grid with prev/next paging, built once and
-// shared by every screen that needs to show dated items on a real
-// calendar (the shared year overview, and each layer's own calendar) --
-// avoids re-implementing the same day-grid math and rendering twice.
+// A single-month calendar grid with prev/next paging -- one grid
+// component reused by every layer's own calendar (avoids
+// re-implementing the same day-grid math and rendering twice).
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { SHARED_COLOR } from '@/components/badge';
 import { Button } from '@/components/button';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -15,10 +15,15 @@ export function MonthCalendar({
   itemsByDate,
   selectedDate,
   onSelectDate,
+  isItemShared,
 }: {
   itemsByDate: Record<string, YearItem[]>;
   selectedDate: string | null;
   onSelectDate: (iso: string) => void;
+  // Lets the caller flag which 'activity' items are pinned to more
+  // than one layer, so their dot reads visually distinct from an
+  // activity that belongs only to the layer whose calendar this is.
+  isItemShared?: (item: YearItem) => boolean;
 }) {
   const theme = useTheme();
   const now = new Date();
@@ -106,7 +111,9 @@ export function MonthCalendar({
                                 ? theme.primary
                                 : it.kind === 'keyDate'
                                   ? theme.success
-                                  : theme.danger,
+                                  : it.kind === 'activity' && isItemShared?.(it)
+                                    ? SHARED_COLOR
+                                    : theme.danger,
                           },
                         ]}
                       />

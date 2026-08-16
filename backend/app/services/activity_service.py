@@ -1,6 +1,7 @@
 # Business logic for the nationwide activity repository: CRUD (creator
 # only), search/filter, ratings, and comments.
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_
@@ -14,6 +15,8 @@ from app.models.layer import Layer
 from app.models.user import User
 from app.schemas.activity import (
     ActivityCommentCreate,
+    ActivityCommentNotificationOut,
+    ActivityCommentOut,
     ActivityCreate,
     ActivityOut,
     ActivityRatingCreate,
@@ -62,11 +65,14 @@ def list_activities(
     grade_max: int | None = None,
     group_size: int | None = None,
     max_duration: int | None = None,
+    created_by: uuid.UUID | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Activity], int]:
     query = db.query(Activity)
 
+    if created_by is not None:
+        query = query.filter(Activity.creator_id == created_by)
     if search:
         like = f"%{search}%"
         query = query.filter(or_(Activity.name.ilike(like), Activity.description.ilike(like)))
@@ -217,8 +223,71 @@ def add_rating(db: Session, user: User, activity: Activity, payload: ActivityRat
 
 
 def add_comment(db: Session, user: User, activity: Activity, payload: ActivityCommentCreate) -> ActivityComment:
-    comment = ActivityComment(activity_id=activity.id, user_id=user.id, body=payload.body)
+    reply_to_id = payload.reply_to_id
+    if reply_to_id is not None:
+        target = db.get(ActivityComment, reply_to_id)
+        if target is None or target.activity_id != activity.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ההודעה שעליה עונים לא נמצאה")
+
+    comment = ActivityComment(activity_id=activity.id, user_id=user.id, body=payload.body, reply_to_id=reply_to_id)
     db.add(comment)
     db.commit()
     db.refresh(comment)
     return comment
+
+
+def to_activity_comment_out(comment: ActivityComment) -> ActivityCommentOut:
+    return ActivityCommentOut(
+        id=comment.id,
+        user_id=comment.user_id,
+        user_name=comment.user.full_name,
+        body=comment.body,
+        reply_to_id=comment.reply_to_id,
+        reply_to_user_name=comment.reply_to.user.full_name if comment.reply_to else None,
+        created_at=comment.created_at,
+    )
+
+
+def _unread_comments_query(db: Session, user: User):
+    """Comments from someone else, on any activity this user created,
+    since they last opened one of their own activities."""
+    query = (
+        db.query(ActivityComment)
+        .join(Activity, ActivityComment.activity_id == Activity.id)
+        .filter(Activity.creator_id == user.id, ActivityComment.user_id != user.id)
+    )
+    if user.activity_comments_last_read_at is not None:
+        query = query.filter(ActivityComment.created_at > user.activity_comments_last_read_at)
+    return query
+
+
+def count_unread_comments(db: Session, user: User) -> int:
+    return _unread_comments_query(db, user).count()
+
+
+UNREAD_COMMENTS_LIMIT = 50
+
+
+def list_unread_comments(db: Session, user: User) -> list[ActivityComment]:
+    return (
+        _unread_comments_query(db, user)
+        .order_by(ActivityComment.created_at.desc())
+        .limit(UNREAD_COMMENTS_LIMIT)
+        .all()
+    )
+
+
+def to_activity_comment_notification_out(comment: ActivityComment) -> ActivityCommentNotificationOut:
+    return ActivityCommentNotificationOut(
+        id=comment.id,
+        activity_id=comment.activity_id,
+        activity_name=comment.activity.name,
+        user_name=comment.user.full_name,
+        body=comment.body,
+        created_at=comment.created_at,
+    )
+
+
+def mark_comments_read(db: Session, user: User) -> None:
+    user.activity_comments_last_read_at = datetime.now(timezone.utc)
+    db.commit()

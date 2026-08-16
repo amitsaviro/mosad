@@ -387,6 +387,135 @@ def test_blank_comment_is_rejected(client):
     assert response.status_code == 422
 
 
+def test_reply_to_a_specific_comment(client):
+    creator_token, _ = _register(client, "replycreator@test.com", full_name="היוצר")
+    activity = _create_activity(client, creator_token).json()
+    asker_token, _ = _register(client, "replyasker@test.com", full_name="השואל")
+
+    question = client.post(
+        f"/api/v1/activities/{activity['id']}/comments",
+        json={"body": "כמה זמן זה לוקח?"},
+        headers=_auth_headers(asker_token),
+    ).json()
+
+    reply = client.post(
+        f"/api/v1/activities/{activity['id']}/comments",
+        json={"body": "כחצי שעה", "reply_to_id": question["id"]},
+        headers=_auth_headers(creator_token),
+    )
+
+    assert reply.status_code == 201
+    body = reply.json()
+    assert body["reply_to_id"] == question["id"]
+    assert body["reply_to_user_name"] == "השואל"
+
+    listed = client.get(f"/api/v1/activities/{activity['id']}/comments", headers=_auth_headers(creator_token)).json()
+    assert len(listed) == 2
+    assert listed[0]["reply_to_id"] is None
+    assert listed[1]["reply_to_id"] == question["id"]
+
+
+def test_reply_to_comment_from_another_activity_is_rejected(client):
+    creator_token, _ = _register(client, "replycrossactivity@test.com")
+    activity_a = _create_activity(client, creator_token, name="פעילות א").json()
+    activity_b = _create_activity(client, creator_token, name="פעילות ב").json()
+
+    comment_on_a = client.post(
+        f"/api/v1/activities/{activity_a['id']}/comments",
+        json={"body": "שאלה על א"},
+        headers=_auth_headers(creator_token),
+    ).json()
+
+    response = client.post(
+        f"/api/v1/activities/{activity_b['id']}/comments",
+        json={"body": "תגובה שגויה", "reply_to_id": comment_on_a["id"]},
+        headers=_auth_headers(creator_token),
+    )
+
+    assert response.status_code == 404
+
+
+def test_unread_comment_count_tracks_last_read(client):
+    creator_token, _ = _register(client, "notifycreator@test.com")
+    activity = _create_activity(client, creator_token).json()
+    asker_token, _ = _register(client, "notifyasker@test.com")
+
+    # No comments yet.
+    unread = client.get("/api/v1/activities/comments/unread-count", headers=_auth_headers(creator_token)).json()
+    assert unread["count"] == 0
+
+    # Own comment on your own activity never counts as unread.
+    client.post(
+        f"/api/v1/activities/{activity['id']}/comments",
+        json={"body": "הערה שלי על הפעילות שלי"},
+        headers=_auth_headers(creator_token),
+    )
+    assert client.get(
+        "/api/v1/activities/comments/unread-count", headers=_auth_headers(creator_token)
+    ).json()["count"] == 0
+
+    client.post(
+        f"/api/v1/activities/{activity['id']}/comments",
+        json={"body": "שאלה מהשואל"},
+        headers=_auth_headers(asker_token),
+    )
+    unread = client.get("/api/v1/activities/comments/unread-count", headers=_auth_headers(creator_token)).json()
+    assert unread["count"] == 1
+
+    # The asker's own count stays 0 -- it's not their activity.
+    asker_unread = client.get("/api/v1/activities/comments/unread-count", headers=_auth_headers(asker_token)).json()
+    assert asker_unread["count"] == 0
+
+    mark = client.post("/api/v1/activities/comments/mark-read", headers=_auth_headers(creator_token))
+    assert mark.status_code == 204
+
+    after_read = client.get(
+        "/api/v1/activities/comments/unread-count", headers=_auth_headers(creator_token)
+    ).json()
+    assert after_read["count"] == 0
+
+
+def test_list_unread_comments_notification(client):
+    creator_token, _ = _register(client, "unreadlistcreator@test.com")
+    activity = _create_activity(client, creator_token, name="הפעילות שלי").json()
+    asker_token, asker_user = _register(client, "unreadlistasker@test.com", full_name="השואל")
+
+    client.post(
+        f"/api/v1/activities/{activity['id']}/comments",
+        json={"body": "יש לי שאלה"},
+        headers=_auth_headers(asker_token),
+    )
+
+    listed = client.get("/api/v1/activities/comments/unread", headers=_auth_headers(creator_token))
+    assert listed.status_code == 200
+    items = listed.json()
+    assert len(items) == 1
+    assert items[0]["activity_id"] == activity["id"]
+    assert items[0]["activity_name"] == "הפעילות שלי"
+    assert items[0]["user_name"] == "השואל"
+    assert items[0]["body"] == "יש לי שאלה"
+
+    client.post("/api/v1/activities/comments/mark-read", headers=_auth_headers(creator_token))
+    after_read = client.get("/api/v1/activities/comments/unread", headers=_auth_headers(creator_token))
+    assert after_read.json() == []
+
+
+def test_created_by_me_filter(client):
+    token, user = _register(client, "onlymine@test.com")
+    other_token, _ = _register(client, "notmine@test.com")
+    _create_activity(client, token, name="שלי")
+    _create_activity(client, other_token, name="לא שלי")
+
+    response = client.get(
+        "/api/v1/activities?created_by_me=true", headers=_auth_headers(token)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["creator_id"] == user["id"]
+
+
 def test_hebrew_activity_fields_round_trip(client):
     token, _ = _register(client, "hebrewactivity@test.com")
 

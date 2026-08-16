@@ -50,7 +50,6 @@ function RootNavigator() {
       <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
       <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />
       <Stack.Screen name="activities/[id]" options={{ title: 'פעילות' }} />
-      <Stack.Screen name="year" options={{ title: 'תצוגת שנה' }} />
     </Stack>
   );
 }

@@ -20,6 +20,7 @@ export type ActivityFilters = {
   grade_max?: number;
   group_size?: number;
   max_duration?: number;
+  created_by_me?: boolean;
   page?: number;
   page_size?: number;
 };
@@ -88,10 +89,31 @@ export function listRatings(activityId: string) {
   return api.get<ActivityRating[]>(`/activities/${activityId}/ratings`);
 }
 
-export function addComment(activityId: string, body: string) {
-  return api.post<ActivityComment>(`/activities/${activityId}/comments`, { body });
+export function addComment(activityId: string, body: string, replyToId?: string) {
+  return api.post<ActivityComment>(`/activities/${activityId}/comments`, { body, reply_to_id: replyToId });
 }
 
 export function listComments(activityId: string) {
   return api.get<ActivityComment[]>(`/activities/${activityId}/comments`);
+}
+
+export function getActivityCommentsUnreadCount() {
+  return api.get<{ count: number }>('/activities/comments/unread-count');
+}
+
+export type ActivityCommentNotification = {
+  id: string;
+  activity_id: string;
+  activity_name: string;
+  user_name: string;
+  body: string;
+  created_at: string;
+};
+
+export function listUnreadActivityComments() {
+  return api.get<ActivityCommentNotification[]>('/activities/comments/unread');
+}
+
+export function markActivityCommentsRead() {
+  return api.post<void>('/activities/comments/mark-read');
 }

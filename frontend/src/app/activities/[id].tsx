@@ -2,8 +2,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
-import { addComment, addRating, deleteActivity, getActivity, listComments, listRatings } from '@/api/activities';
-import { listActivityMessages, listActivityMessageThreads, sendActivityMessage } from '@/api/activityMessages';
+import {
+  addComment,
+  addRating,
+  deleteActivity,
+  getActivity,
+  listComments,
+  listRatings,
+  markActivityCommentsRead,
+} from '@/api/activities';
 import { createCalendarActivity } from '@/api/calendarActivities';
 import { ApiError } from '@/api/client';
 import { listLayers } from '@/api/layers';
@@ -22,7 +29,7 @@ import {
 } from '@/constants/activity';
 import { DAYS_OF_WEEK, DAY_OF_WEEK_LABELS } from '@/constants/schedule';
 import { Spacing } from '@/constants/theme';
-import { Activity, ActivityComment, ActivityMessage, ActivityMessageThread, ActivityRating, DayOfWeek, Layer } from '@/types';
+import { Activity, ActivityComment, ActivityRating, DayOfWeek, Layer } from '@/types';
 import { addDaysUtc, formatIsoDate, parseIsoDate, startOfWeekIso, toIsraeliDate } from '@/utils/calendar';
 
 type PickParams = {
@@ -75,15 +82,9 @@ export default function ActivityDetailScreen() {
   const [isScheduling, setIsScheduling] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
 
-  // "Ask the creator" thread(s). A non-creator only ever has one
-  // thread (with the creator); the creator may have several askers and
-  // needs to pick which thread they're viewing/replying to.
-  const [threads, setThreads] = useState<ActivityMessageThread[]>([]);
-  const [selectedAskerId, setSelectedAskerId] = useState<string | null>(null);
-  const [threadMessages, setThreadMessages] = useState<ActivityMessage[]>([]);
-  const [messageDraft, setMessageDraft] = useState('');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [messagesError, setMessagesError] = useState<string | null>(null);
+  // Replying to a specific comment (most often: the creator answering
+  // a specific asker) instead of just adding another flat entry.
+  const [replyToId, setReplyToId] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
@@ -98,6 +99,12 @@ export default function ActivityDetailScreen() {
       setRatings(fetchedRatings);
       setComments(fetchedComments);
       setMyLayers(fetchedLayers.filter((l) => l.can_manage));
+      // Opening any of your own activities counts as "caught up" on
+      // comments across all of them -- a soft nudge, not a precise
+      // per-activity inbox.
+      if (fetchedActivity.can_manage) {
+        markActivityCommentsRead().catch(() => {});
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'טעינת הפעילות נכשלה');
     }
@@ -107,29 +114,6 @@ export default function ActivityDetailScreen() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  async function loadMessages() {
-    if (!activity) return;
-    setMessagesError(null);
-    try {
-      if (activity.can_manage) {
-        const fetchedThreads = await listActivityMessageThreads(activity.id);
-        setThreads(fetchedThreads);
-        if (selectedAskerId) {
-          setThreadMessages(await listActivityMessages(activity.id, selectedAskerId));
-        }
-      } else {
-        setThreadMessages(await listActivityMessages(activity.id));
-      }
-    } catch (err) {
-      setMessagesError(err instanceof ApiError ? err.message : 'טעינת השאלות נכשלה');
-    }
-  }
-
-  useEffect(() => {
-    loadMessages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity?.id, activity?.can_manage, selectedAskerId]);
 
   async function handleDelete() {
     try {
@@ -157,27 +141,12 @@ export default function ActivityDetailScreen() {
   async function handleAddComment() {
     if (!commentBody.trim()) return;
     try {
-      await addComment(id, commentBody.trim());
+      await addComment(id, commentBody.trim(), replyToId ?? undefined);
       setCommentBody('');
+      setReplyToId(null);
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'הוספת התגובה נכשלה');
-    }
-  }
-
-  async function handleSendMessage() {
-    if (!activity || !messageDraft.trim()) return;
-    if (activity.can_manage && !selectedAskerId) return;
-    setIsSendingMessage(true);
-    setMessagesError(null);
-    try {
-      await sendActivityMessage(activity.id, messageDraft.trim(), selectedAskerId ?? undefined);
-      setMessageDraft('');
-      await loadMessages();
-    } catch (err) {
-      setMessagesError(err instanceof ApiError ? err.message : 'שליחת ההודעה נכשלה');
-    } finally {
-      setIsSendingMessage(false);
     }
   }
 
@@ -524,17 +493,31 @@ export default function ActivityDetailScreen() {
         </Card>
 
         <ThemedText type="subtitle" style={styles.rtlText}>
-          תגובות ({comments.length})
+          תגובות ושאלות ({comments.length})
         </ThemedText>
         <Card style={styles.card}>
+          {replyToId && (
+            <View style={styles.replyBanner}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                עונה ל{comments.find((c) => c.id === replyToId)?.user_name}
+              </ThemedText>
+              <Button
+                label="ביטול"
+                variant="ghost"
+                size="small"
+                fullWidth={false}
+                onPress={() => setReplyToId(null)}
+              />
+            </View>
+          )}
           <TextField
-            label="שאל שאלה או הוסף הערה"
+            label={replyToId ? 'תשובה' : 'שאל שאלה או הוסף הערה'}
             value={commentBody}
             onChangeText={setCommentBody}
             multiline
             style={styles.multiline}
           />
-          <Button label="שלח תגובה" onPress={handleAddComment} variant="secondary" />
+          <Button label="שלח" onPress={handleAddComment} variant="secondary" />
 
           {comments.length > 0 && (
             <View style={styles.list}>
@@ -543,82 +526,23 @@ export default function ActivityDetailScreen() {
                   <ThemedText type="smallBold" style={styles.rtlText}>
                     {c.user_name}
                   </ThemedText>
+                  {c.reply_to_user_name && (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                      ↩️ בתשובה ל{c.reply_to_user_name}
+                    </ThemedText>
+                  )}
                   <ThemedText style={styles.rtlText}>{c.body}</ThemedText>
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.rtlText}
+                    onPress={() => setReplyToId(c.id)}
+                  >
+                    השב
+                  </ThemedText>
                 </View>
               ))}
             </View>
-          )}
-        </Card>
-
-        <ThemedText type="subtitle" style={styles.rtlText}>
-          📩 שאלות למעלה הפעילות
-        </ThemedText>
-        <Card style={styles.card}>
-          {messagesError && <ThemedText themeColor="danger" style={styles.rtlText}>{messagesError}</ThemedText>}
-
-          {activity.can_manage ? (
-            <>
-              {threads.length === 0 ? (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                  אף אחד עדיין לא שאל שאלה על הפעילות הזו.
-                </ThemedText>
-              ) : (
-                <View style={styles.chipRow}>
-                  {threads.map((t) => (
-                    <Button
-                      key={t.other_user_id}
-                      label={t.other_user_name}
-                      size="small"
-                      fullWidth={false}
-                      variant={selectedAskerId === t.other_user_id ? 'primary' : 'ghost'}
-                      onPress={() => setSelectedAskerId(t.other_user_id)}
-                    />
-                  ))}
-                </View>
-              )}
-              {selectedAskerId && (
-                <View style={styles.list}>
-                  {threadMessages.map((m) => (
-                    <View key={m.id} style={styles.commentRow}>
-                      <ThemedText type="smallBold" style={styles.rtlText}>
-                        {m.sender_name}
-                      </ThemedText>
-                      <ThemedText style={styles.rtlText}>{m.body}</ThemedText>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.list}>
-              {threadMessages.length === 0 ? (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                  שאלו את {activity.creator_name} שאלה על הפעילות הזו.
-                </ThemedText>
-              ) : (
-                threadMessages.map((m) => (
-                  <View key={m.id} style={styles.commentRow}>
-                    <ThemedText type="smallBold" style={styles.rtlText}>
-                      {m.sender_name}
-                    </ThemedText>
-                    <ThemedText style={styles.rtlText}>{m.body}</ThemedText>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-
-          {(!activity.can_manage || selectedAskerId) && (
-            <>
-              <TextField
-                label={activity.can_manage ? 'תשובה' : `שאלה ל${activity.creator_name}`}
-                value={messageDraft}
-                onChangeText={setMessageDraft}
-                multiline
-                style={styles.multiline}
-              />
-              <Button label="שלח" onPress={handleSendMessage} loading={isSendingMessage} variant="secondary" />
-            </>
           )}
         </Card>
       </ScrollView>
@@ -681,5 +605,11 @@ const styles = StyleSheet.create({
   },
   commentRow: {
     gap: Spacing.half,
+  },
+  replyBanner: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
 });

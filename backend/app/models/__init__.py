@@ -5,7 +5,6 @@
 from app.models.activity import Activity, ActivityType
 from app.models.activity_attachment import ActivityAttachment
 from app.models.activity_comment import ActivityComment
-from app.models.activity_message import ActivityMessage
 from app.models.activity_rating import ActivityRating
 from app.models.attendance import Attendance
 from app.models.calendar_activity import CalendarActivity
@@ -36,5 +35,4 @@ __all__ = [
     "ParticipantNote",
     "ChatMessage",
     "LayerChatRead",
-    "ActivityMessage",
 ]

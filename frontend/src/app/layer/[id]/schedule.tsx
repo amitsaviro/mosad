@@ -1,6 +1,6 @@
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { addRating, createActivity } from '@/api/activities';
 import {
@@ -11,13 +11,15 @@ import {
 } from '@/api/calendarActivities';
 import { ApiError } from '@/api/client';
 import { listHolidays } from '@/api/holidays';
-import { listKeyDates } from '@/api/keyDates';
+import { createKeyDate, deleteKeyDate, listKeyDates } from '@/api/keyDates';
 import { getLayer, listLayers } from '@/api/layers';
+import { useAuth } from '@/auth/AuthContext';
 import { ActivityDetailModal } from '@/components/activity-detail-modal';
-import { Badge } from '@/components/badge';
+import { Badge, SHARED_COLOR } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ConfirmButton } from '@/components/confirm-button';
+import { IconButton } from '@/components/icon-button';
 import { MonthCalendar } from '@/components/month-calendar';
 import { SessionReportModal } from '@/components/session-report-modal';
 import { TextField } from '@/components/text-field';
@@ -32,6 +34,7 @@ import {
   addDaysUtc,
   buildItemsByDate,
   formatIsoDate,
+  fromIsraeliDate,
   parseIsoDate,
   startOfWeekIso,
   toIsraeliDate,
@@ -74,6 +77,8 @@ export default function LayerScheduleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTheme();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'institution_admin';
   const [layer, setLayer] = useState<Layer | null>(null);
   const [otherLayers, setOtherLayers] = useState<Layer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +116,25 @@ export default function LayerScheduleScreen() {
   const [calNewDescription, setCalNewDescription] = useState('');
   const [calNewType, setCalNewType] = useState<ActivityType>('main');
   const [calIsSaving, setCalIsSaving] = useState(false);
+
+  // Sharing an already-pinned activity with more layers after the fact
+  // -- pins the same activity_id+date+start_time onto each newly
+  // picked layer, alongside the existing one(s).
+  const [shareTargetEntry, setShareTargetEntry] = useState<CalendarActivity | null>(null);
+  const [shareTargetLayerIds, setShareTargetLayerIds] = useState<string[]>([]);
+  const [isSharingTarget, setIsSharingTarget] = useState(false);
+
+  // Sharing at weekly-grid add time (mirrors the "add to date" form's
+  // own share picker below).
+  const [weeklyShareLayerIds, setWeeklyShareLayerIds] = useState<string[]>([]);
+
+  // Admin-only: institution-wide key dates (shown in every layer's
+  // calendar automatically) -- managed from within a layer's schedule
+  // rather than a separate cross-layer page.
+  const [keyDateName, setKeyDateName] = useState('');
+  const [keyDateText, setKeyDateText] = useState('');
+  const [keyDateNote, setKeyDateNote] = useState('');
+  const [isSavingKeyDate, setIsSavingKeyDate] = useState(false);
 
   async function loadData() {
     setError(null);
@@ -176,10 +200,14 @@ export default function LayerScheduleScreen() {
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
   });
 
-  function sharedLayerNames(entry: CalendarActivity): string[] {
-    const siblings = allCalendarActivities.filter(
+  function sharingSiblings(entry: CalendarActivity): CalendarActivity[] {
+    return allCalendarActivities.filter(
       (a) => a.activity_id === entry.activity_id && a.date === entry.date && a.id !== entry.id
     );
+  }
+
+  function sharedLayerNames(entry: CalendarActivity): string[] {
+    const siblings = sharingSiblings(entry);
     if (siblings.length === 0) return [];
     return [entry.layer_name, ...siblings.map((s) => s.layer_name)];
   }
@@ -191,6 +219,13 @@ export default function LayerScheduleScreen() {
     setNewName('');
     setNewDescription('');
     setActivitySource('repository');
+    setWeeklyShareLayerIds([]);
+  }
+
+  function toggleWeeklyShareLayer(layerId: string) {
+    setWeeklyShareLayerIds((prev) =>
+      prev.includes(layerId) ? prev.filter((l) => l !== layerId) : [...prev, layerId]
+    );
   }
 
   function handlePickFromRepository() {
@@ -200,7 +235,8 @@ export default function LayerScheduleScreen() {
       return;
     }
     setError(null);
-    router.push(`/activities?pickForLayerId=${id}&pickCalendarDate=${weekDates[day]}&pickTime=${apiTime}`);
+    const shareParam = weeklyShareLayerIds.length ? `&pickShareLayerIds=${weeklyShareLayerIds.join(',')}` : '';
+    router.push(`/activities?pickForLayerId=${id}&pickCalendarDate=${weekDates[day]}&pickTime=${apiTime}${shareParam}`);
   }
 
   async function handleCreateAndSchedule() {
@@ -216,21 +252,32 @@ export default function LayerScheduleScreen() {
 
     setError(null);
     setIsSaving(true);
+    const layerIds = [id, ...weeklyShareLayerIds];
     try {
       const created = await createActivity({
         name: newName.trim(),
         description: newDescription.trim(),
         activity_type: newType,
       });
-      await createCalendarActivity(id, {
-        activity_id: created.id,
-        date: weekDates[day],
-        start_time: apiTime,
-        duration_minutes: durationText.trim() ? Number(durationText.trim()) : undefined,
-        notes: notes.trim() || undefined,
-      });
+      const failures: string[] = [];
+      for (const layerId of layerIds) {
+        try {
+          await createCalendarActivity(layerId, {
+            activity_id: created.id,
+            date: weekDates[day],
+            start_time: apiTime,
+            duration_minutes: durationText.trim() ? Number(durationText.trim()) : undefined,
+            notes: notes.trim() || undefined,
+          });
+        } catch {
+          failures.push(layerId);
+        }
+      }
       resetForm();
       await loadData();
+      if (failures.length > 0) {
+        setError(`השיבוץ נכשל עבור ${failures.length} מהשכבות שנבחרו`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'השיבוץ נכשל');
     } finally {
@@ -302,6 +349,77 @@ export default function LayerScheduleScreen() {
     }
   }
 
+  function openSharePicker(entry: CalendarActivity) {
+    setShareTargetEntry(entry);
+    setShareTargetLayerIds([]);
+  }
+
+  function toggleShareTargetLayer(layerId: string) {
+    setShareTargetLayerIds((prev) =>
+      prev.includes(layerId) ? prev.filter((l) => l !== layerId) : [...prev, layerId]
+    );
+  }
+
+  // Pins the SAME activity onto more layers, alongside an
+  // already-existing entry -- turns a regular, single-layer activity
+  // into a shared one after the fact, instead of only being able to
+  // choose sharing at the moment it's first added.
+  async function handleConfirmShare() {
+    if (!shareTargetEntry || shareTargetLayerIds.length === 0) return;
+    setError(null);
+    setIsSharingTarget(true);
+    const failures: string[] = [];
+    for (const layerId of shareTargetLayerIds) {
+      try {
+        await createCalendarActivity(layerId, {
+          activity_id: shareTargetEntry.activity_id,
+          date: shareTargetEntry.date,
+          start_time: shareTargetEntry.start_time ?? undefined,
+          notes: shareTargetEntry.notes ?? undefined,
+        });
+      } catch {
+        failures.push(layerId);
+      }
+    }
+    setShareTargetEntry(null);
+    setShareTargetLayerIds([]);
+    setIsSharingTarget(false);
+    await loadData();
+    if (failures.length > 0) {
+      setError(`השיתוף נכשל עבור ${failures.length} מהשכבות שנבחרו`);
+    }
+  }
+
+  async function handleAddKeyDate() {
+    const isoDate = fromIsraeliDate(keyDateText);
+    if (!keyDateName.trim() || !isoDate) {
+      setError('יש למלא שם ותאריך בפורמט תקין, למשל 14/12/2026');
+      return;
+    }
+    setError(null);
+    setIsSavingKeyDate(true);
+    try {
+      await createKeyDate(keyDateName.trim(), isoDate, keyDateNote.trim() || undefined);
+      setKeyDateName('');
+      setKeyDateText('');
+      setKeyDateNote('');
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'ההוספה נכשלה');
+    } finally {
+      setIsSavingKeyDate(false);
+    }
+  }
+
+  async function handleDeleteKeyDate(keyDateId: string) {
+    try {
+      await deleteKeyDate(keyDateId);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'המחיקה נכשלה');
+    }
+  }
+
   async function handleToggleCalendarEquipment(entry: CalendarActivity, item: string) {
     const checked = entry.equipment_checked.includes(item);
     const nextChecked = checked
@@ -354,9 +472,6 @@ export default function LayerScheduleScreen() {
             הלוח{layer ? ` — ${layer.name}` : ''}
           </ThemedText>
           <View style={styles.headerActions}>
-            <Link href="/year">
-              <ThemedText type="linkPrimary">תצוגת שנה כללית ←</ThemedText>
-            </Link>
             <Button
               label="חזרה לשכבה"
               variant="ghost"
@@ -428,6 +543,26 @@ export default function LayerScheduleScreen() {
               value={timeText}
               onChangeText={setTimeText}
             />
+
+            {otherLayers.length > 0 && (
+              <>
+                <ThemedText type="smallBold" style={styles.rtlText}>
+                  גם עבור שכבות נוספות (משותפת)
+                </ThemedText>
+                <View style={styles.chipRow}>
+                  {otherLayers.map((l) => (
+                    <Button
+                      key={l.id}
+                      label={l.name}
+                      size="small"
+                      fullWidth={false}
+                      variant={weeklyShareLayerIds.includes(l.id) ? 'primary' : 'ghost'}
+                      onPress={() => toggleWeeklyShareLayer(l.id)}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
 
             <ThemedText type="smallBold" style={styles.rtlText}>
               פעילות
@@ -515,10 +650,13 @@ export default function LayerScheduleScreen() {
                       {displayTime(block[0].start_time)}
                       {block.length > 1 ? ` — בלוק של ${block.length} פעילויות` : ''}
                     </ThemedText>
-                    {block.map((entry) => (
+                    {block.map((entry) => {
+                      const entryShared = sharedLayerNames(entry);
+                      return (
                       <Card key={entry.id} style={styles.entryCard}>
                         <View style={styles.entryHeaderRow}>
                           <Badge label={ACTIVITY_TYPE_LABELS[entry.activity_type]} tone="primary" />
+                          {entryShared.length > 0 && <Badge label="🔗 משותפת" tone="shared" />}
                           <ThemedText type="smallBold" style={styles.rtlText}>
                             {entry.activity_name}
                           </ThemedText>
@@ -576,6 +714,15 @@ export default function LayerScheduleScreen() {
                               }
                             />
                           )}
+                          {entry.can_manage && otherLayers.length > 0 && (
+                            <Button
+                              label="🔗 שתף עם שכבות נוספות"
+                              variant="secondary"
+                              size="small"
+                              fullWidth={false}
+                              onPress={() => openSharePicker(entry)}
+                            />
+                          )}
                           {entry.can_manage && (
                             <ConfirmButton
                               label="הסר מהלוח"
@@ -584,7 +731,8 @@ export default function LayerScheduleScreen() {
                           )}
                         </View>
                       </Card>
-                    ))}
+                      );
+                    })}
                   </View>
                 ))}
               </View>
@@ -629,9 +777,12 @@ export default function LayerScheduleScreen() {
                   const k = item.keyDate;
                   return (
                     <View key={`k-${k.id}`} style={styles.detailBlock}>
-                      <ThemedText type="smallBold" style={styles.rtlText}>
-                        📌 {k.name}
-                      </ThemedText>
+                      <View style={styles.dateRow}>
+                        <ThemedText type="smallBold" style={styles.rtlText}>
+                          📌 {k.name}
+                        </ThemedText>
+                        {isAdmin && <ConfirmButton label="הסר" onConfirm={() => handleDeleteKeyDate(k.id)} />}
+                      </View>
                       {k.note && (
                         <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
                           {k.note}
@@ -648,6 +799,7 @@ export default function LayerScheduleScreen() {
                   <View key={`a-${a.id}`} style={styles.detailBlock}>
                     <View style={styles.dateRow}>
                       <Badge label={ACTIVITY_TYPE_LABELS[a.activity_type]} tone="primary" />
+                      {shared.length > 0 && <Badge label="🔗 משותפת" tone="shared" />}
                       <ThemedText type="smallBold" style={styles.rtlText}>
                         {a.activity_name}
                         {a.start_time ? ` · ${displayTime(a.start_time)}` : ''}
@@ -655,7 +807,7 @@ export default function LayerScheduleScreen() {
                     </View>
                     {shared.length > 0 && (
                       <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                        🔗 פעילות משותפת: {shared.join(', ')}
+                        🔗 משותפת עם: {shared.join(', ')}
                       </ThemedText>
                     )}
                     {a.notes && (
@@ -700,6 +852,15 @@ export default function LayerScheduleScreen() {
                           onPress={() =>
                             setSessionReportContext({ activityName: a.activity_name, date: a.date })
                           }
+                        />
+                      )}
+                      {a.can_manage && otherLayers.length > 0 && (
+                        <Button
+                          label="🔗 שתף עם שכבות נוספות"
+                          variant="secondary"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => openSharePicker(a)}
                         />
                       )}
                       {a.can_manage && (
@@ -825,7 +986,59 @@ export default function LayerScheduleScreen() {
           )}
         </Card>
 
-        <MonthCalendar itemsByDate={itemsByDate} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+        {isAdmin && (
+          <Card style={styles.card}>
+            <ThemedText type="subtitle" style={styles.rtlText}>
+              הוספת תאריך מרכזי למוסד
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              משותף לכל המוסד ומופיע בלוח השנה של כל השכבות (למשל אסיפת הורים או יום גיבוש כללי).
+            </ThemedText>
+            <TextField label="שם (למשל: אסיפת הורים)" value={keyDateName} onChangeText={setKeyDateName} />
+            <TextField
+              label="תאריך (יום/חודש/שנה)"
+              placeholder="14/12/2026"
+              value={keyDateText}
+              onChangeText={setKeyDateText}
+            />
+            <TextField label="הערה (אופציונלי)" value={keyDateNote} onChangeText={setKeyDateNote} />
+            <Button label="הוסף" onPress={handleAddKeyDate} loading={isSavingKeyDate} />
+          </Card>
+        )}
+
+        <View style={styles.legendRow}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: theme.primary }]} />
+            <ThemedText type="small" themeColor="textSecondary">
+              חג
+            </ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: theme.success }]} />
+            <ThemedText type="small" themeColor="textSecondary">
+              תאריך מרכזי
+            </ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: theme.danger }]} />
+            <ThemedText type="small" themeColor="textSecondary">
+              פעילות שכבתית
+            </ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: SHARED_COLOR }]} />
+            <ThemedText type="small" themeColor="textSecondary">
+              פעילות משותפת
+            </ThemedText>
+          </View>
+        </View>
+
+        <MonthCalendar
+          itemsByDate={itemsByDate}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          isItemShared={(item) => item.kind === 'activity' && sharedLayerNames(item.activity).length > 0}
+        />
       </ScrollView>
       <ActivityDetailModal activityId={viewActivityId} onClose={() => setViewActivityId(null)} />
       <SessionReportModal
@@ -834,6 +1047,42 @@ export default function LayerScheduleScreen() {
         initialDate={sessionReportContext?.date ?? todayIso()}
         onClose={() => setSessionReportContext(null)}
       />
+      <Modal visible={!!shareTargetEntry} transparent animationType="fade" onRequestClose={() => setShareTargetEntry(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShareTargetEntry(null)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.headerRow}>
+              <IconButton glyph="✕" accessibilityLabel="סגור" onPress={() => setShareTargetEntry(null)} />
+              <ThemedText type="subtitle" style={styles.rtlText} numberOfLines={2}>
+                שיתוף — {shareTargetEntry?.activity_name}
+              </ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              בחרו שכבות נוספות שיקבלו את אותה הפעילות לאותו תאריך{shareTargetEntry?.start_time ? ' ושעה' : ''}.
+            </ThemedText>
+            <View style={styles.chipRow}>
+              {shareTargetEntry &&
+                otherLayers
+                  .filter((l) => !sharingSiblings(shareTargetEntry).some((s) => s.layer_id === l.id))
+                  .map((l) => (
+                    <Button
+                      key={l.id}
+                      label={l.name}
+                      size="small"
+                      fullWidth={false}
+                      variant={shareTargetLayerIds.includes(l.id) ? 'primary' : 'ghost'}
+                      onPress={() => toggleShareTargetLayer(l.id)}
+                    />
+                  ))}
+            </View>
+            <Button
+              label="שתף"
+              onPress={handleConfirmShare}
+              loading={isSharingTarget}
+              disabled={shareTargetLayerIds.length === 0}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -941,5 +1190,34 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
     paddingTop: Spacing.three,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  legendRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  legendItem: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+  },
+  modalSheet: {
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: 20,
+    padding: Spacing.four,
+    gap: Spacing.two,
   },
 });

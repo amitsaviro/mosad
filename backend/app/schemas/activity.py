@@ -196,6 +196,7 @@ class ActivityRatingOut(BaseModel):
 
 class ActivityCommentCreate(BaseModel):
     body: str
+    reply_to_id: uuid.UUID | None = None
 
     @field_validator("body")
     @classmethod
@@ -209,6 +210,23 @@ class ActivityCommentCreate(BaseModel):
 class ActivityCommentOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    user_name: str
+    body: str
+    reply_to_id: uuid.UUID | None
+    reply_to_user_name: str | None
+    created_at: datetime
+
+
+class ActivityCommentsUnreadCountOut(BaseModel):
+    count: int
+
+
+class ActivityCommentNotificationOut(BaseModel):
+    """A single unread comment plus which activity it's on -- the
+    compact notification-list shape, not the full comment thread."""
+    id: uuid.UUID
+    activity_id: uuid.UUID
+    activity_name: str
     user_name: str
     body: str
     created_at: datetime

@@ -106,5 +106,5 @@ class Activity(UUIDPKMixin, TimestampMixin, Base):
         back_populates="activity", cascade="all, delete-orphan"
     )
     comments: Mapped[list["ActivityComment"]] = relationship(
-        back_populates="activity", cascade="all, delete-orphan"
+        back_populates="activity", cascade="all, delete-orphan", order_by="ActivityComment.created_at"
     )

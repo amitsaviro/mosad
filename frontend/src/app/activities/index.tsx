@@ -30,11 +30,12 @@ const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
-  const { pickForLayerId, pickTime, pickCalendarDate, pickShareLayerIds } = useLocalSearchParams<{
+  const { pickForLayerId, pickTime, pickCalendarDate, pickShareLayerIds, onlyMine } = useLocalSearchParams<{
     pickForLayerId?: string;
     pickTime?: string;
     pickCalendarDate?: string;
     pickShareLayerIds?: string;
+    onlyMine?: string;
   }>();
   const isPicking = !!pickForLayerId && !!pickCalendarDate;
   const shareLayerIds = pickShareLayerIds ? pickShareLayerIds.split(',').filter(Boolean) : [];
@@ -53,6 +54,7 @@ export default function ActivitiesScreen() {
   const [gradeMax, setGradeMax] = useState<number | null>(null);
   const [groupSize, setGroupSize] = useState('');
   const [tag, setTag] = useState('');
+  const [createdByMe, setCreatedByMe] = useState(onlyMine === '1');
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -69,6 +71,7 @@ export default function ActivitiesScreen() {
         grade_max: gradeMax ?? undefined,
         group_size: groupSize.trim() ? Number(groupSize.trim()) : undefined,
         tag: tag.trim() || undefined,
+        created_by_me: createdByMe || undefined,
         page: targetPage,
         page_size: PAGE_SIZE,
       });
@@ -170,6 +173,14 @@ export default function ActivitiesScreen() {
 
         <Card style={styles.filtersCard}>
           <TextField label="חיפוש" placeholder="שם או תיאור" value={search} onChangeText={setSearch} />
+
+          <Button
+            label={createdByMe ? '✓ מציג רק את הפעילויות שלי' : 'הצג רק את הפעילויות שלי'}
+            size="small"
+            fullWidth={false}
+            variant={createdByMe ? 'primary' : 'ghost'}
+            onPress={() => setCreatedByMe((prev) => !prev)}
+          />
 
           <ThemedText type="smallBold" style={styles.rtlText}>
             תפקיד בפעילות

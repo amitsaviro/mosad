@@ -2,6 +2,7 @@ import { Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { getActivityCommentsUnreadCount } from '@/api/activities';
 import { ApiError } from '@/api/client';
 import { createInstitution, updateInstitution } from '@/api/institutions';
 import {
@@ -20,10 +21,12 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ConfirmButton } from '@/components/confirm-button';
 import { EditableText } from '@/components/editable-text';
+import { IconButton } from '@/components/icon-button';
+import { NewCommentsModal } from '@/components/new-comments-modal';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { Layer, User } from '@/types';
 
 export default function DashboardScreen() {
@@ -32,6 +35,8 @@ export default function DashboardScreen() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [commentsUnreadCount, setCommentsUnreadCount] = useState(0);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
 
   const [newInstitutionName, setNewInstitutionName] = useState('');
   const [newLayerName, setNewLayerName] = useState('');
@@ -59,6 +64,21 @@ export default function DashboardScreen() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Light polling just for the badge count -- separate from loadData
+  // so a hiccup fetching it never blanks out the rest of the dashboard.
+  useEffect(() => {
+    async function pollUnread() {
+      try {
+        setCommentsUnreadCount((await getActivityCommentsUnreadCount()).count);
+      } catch {
+        // Silent -- a missed badge update isn't worth an error banner.
+      }
+    }
+    pollUnread();
+    const interval = setInterval(pollUnread, 20000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleCreateInstitution() {
     if (!newInstitutionName.trim()) return;
@@ -199,12 +219,20 @@ export default function DashboardScreen() {
               variant="secondary"
               fullWidth={false}
             />
-            <Button
-              label="תצוגת שנה"
-              onPress={() => router.push('/year')}
-              variant="secondary"
-              fullWidth={false}
-            />
+            <View style={styles.notifyButtonWrap}>
+              <IconButton
+                glyph="📩"
+                accessibilityLabel="תגובות חדשות"
+                onPress={() => setShowCommentsModal(true)}
+              />
+              {commentsUnreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <ThemedText type="small" style={styles.unreadBadgeText}>
+                    {commentsUnreadCount > 9 ? '9+' : commentsUnreadCount}
+                  </ThemedText>
+                </View>
+              )}
+            </View>
             <Button label="התנתקות" onPress={logout} variant="ghost" fullWidth={false} />
           </View>
         </View>
@@ -359,6 +387,13 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+      <NewCommentsModal
+        visible={showCommentsModal}
+        onClose={() => {
+          setShowCommentsModal(false);
+          setCommentsUnreadCount(0);
+        }}
+      />
     </ThemedView>
   );
 }
@@ -392,6 +427,26 @@ const styles = StyleSheet.create({
   headerActions: {
     alignItems: 'flex-end',
     gap: Spacing.two,
+  },
+  notifyButtonWrap: {
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: Colors.light.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    lineHeight: 14,
   },
   rtlText: {
     textAlign: 'right',
