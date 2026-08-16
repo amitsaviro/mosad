@@ -15,6 +15,7 @@ from app.schemas.calendar_activity import CalendarActivityCreate, CalendarActivi
 from app.schemas.chat import ChatMessageCreate, ChatMessageOut, ChatUnreadCountOut
 from app.schemas.layer import LayerAssignCounselor, LayerCreate, LayerJoin, LayerOut, LayerUpdate
 from app.schemas.participant import ParticipantCreate, ParticipantOut
+from app.schemas.trip import TripCreate, TripSummaryOut
 from app.schemas.user import UserOut
 from app.services.attendance_service import list_attendance_for_date, mark_attendance, to_attendance_out
 from app.services.auth_service import build_user_out
@@ -32,6 +33,7 @@ from app.services.layer_service import (
     update_layer,
 )
 from app.services.participant_service import create_participant, list_participants
+from app.services.trip_service import create_trip, list_trips_for_layer, to_trip_summary_out
 
 router = APIRouter(prefix="/layers", tags=["layers"])
 
@@ -224,3 +226,24 @@ def chat_unread_count_endpoint(
     db: Session = Depends(get_db),
 ):
     return ChatUnreadCountOut(layer_id=layer.id, count=count_unread(db, current_user, layer.id))
+
+
+@router.post("/{layer_id}/trips", response_model=TripSummaryOut, status_code=201)
+def create_trip_endpoint(
+    payload: TripCreate,
+    layer: Layer = Depends(get_manageable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    trip = create_trip(db, current_user, layer, payload)
+    return to_trip_summary_out(db, current_user, trip)
+
+
+@router.get("/{layer_id}/trips", response_model=list[TripSummaryOut])
+def list_trips_endpoint(
+    layer: Layer = Depends(get_viewable_layer),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    trips = list_trips_for_layer(db, layer)
+    return [to_trip_summary_out(db, current_user, t) for t in trips]

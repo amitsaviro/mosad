@@ -203,3 +203,64 @@ export type ChatMessage = {
   created_at: string;
 };
 
+export type TripEquipmentItem = {
+  id: string;
+  label: string;
+  checked: boolean;
+};
+
+export type TripShoppingItem = {
+  id: string;
+  label: string;
+  checked: boolean;
+};
+
+export type TripDocument = {
+  id: string;
+  label: string;
+  url: string;
+};
+
+export type TripScheduleItem = {
+  id: string;
+  time: string | null; // "HH:MM:SS"
+  title: string;
+  notes: string | null;
+};
+
+export type TripConfirmation = {
+  participant_id: string;
+  participant_name: string;
+  confirmed: boolean;
+};
+
+export type TripSummary = {
+  id: string;
+  layer_id: string;
+  name: string;
+  destination: string | null;
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string; // "YYYY-MM-DD"
+  can_manage: boolean;
+  created_at: string;
+};
+
+export type Trip = {
+  id: string;
+  layer_id: string;
+  layer_name: string;
+  name: string;
+  destination: string | null;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+  created_by_name: string;
+  can_manage: boolean;
+  created_at: string;
+  equipment: TripEquipmentItem[];
+  shopping: TripShoppingItem[];
+  documents: TripDocument[];
+  schedule: TripScheduleItem[];
+  confirmations: TripConfirmation[];
+};
+

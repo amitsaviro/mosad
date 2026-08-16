@@ -14,6 +14,7 @@ from app.models.calendar_activity import CalendarActivity
 from app.models.layer import Layer
 from app.models.participant import Participant
 from app.models.participant_note import ParticipantNote
+from app.models.trip import Trip
 from app.models.user import User, UserRole
 from app.services.layer_service import user_can_manage_layer, user_can_view_layer
 
@@ -187,3 +188,41 @@ def get_manageable_calendar_activity(
     if layer is None or not user_can_manage_layer(db, current_user, layer):
         raise not_found
     return entry
+
+
+def get_viewable_trip(
+    trip_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Trip:
+    """READ access: anyone in the trip's own institution, same rule as
+    get_viewable_layer since a trip is just a layer's own sub-resource."""
+    not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="תיק הטיול לא נמצא")
+    trip = db.get(Trip, trip_id)
+    if trip is None:
+        raise not_found
+
+    layer = db.get(Layer, trip.layer_id)
+    if layer is None or not user_can_view_layer(current_user, layer):
+        raise not_found
+    return trip
+
+
+def get_manageable_trip(
+    trip_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Trip:
+    """WRITE access: admin of this institution, or a counselor assigned
+    to the trip's own layer -- covers every nested mutation (equipment,
+    shopping, documents, schedule, confirmations), not just the trip
+    itself, so a single dependency is reused everywhere."""
+    not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="תיק הטיול לא נמצא")
+    trip = db.get(Trip, trip_id)
+    if trip is None:
+        raise not_found
+
+    layer = db.get(Layer, trip.layer_id)
+    if layer is None or not user_can_manage_layer(db, current_user, layer):
+        raise not_found
+    return trip

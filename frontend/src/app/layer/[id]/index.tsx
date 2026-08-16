@@ -255,6 +255,13 @@ export default function LayerDetailScreen() {
                 </View>
               )}
             </View>
+            <Button
+              label="🎒 תיק טיול"
+              variant="secondary"
+              size="small"
+              fullWidth={false}
+              onPress={() => router.push(`/layer/${id}/trips`)}
+            />
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>
