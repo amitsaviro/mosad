@@ -2,8 +2,7 @@
 // TypeScript, so this file (and everything under src/api/) could be
 // lifted into any other JS project unchanged.
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api/v1';
-
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://mosad-v7ca.onrender.com/api/v1';
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
