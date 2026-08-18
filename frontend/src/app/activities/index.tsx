@@ -1,6 +1,6 @@
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { listActivities } from '@/api/activities';
 import { createCalendarActivity } from '@/api/calendarActivities';
@@ -30,6 +30,13 @@ const PAGE_SIZE = 12;
 
 export default function ActivitiesScreen() {
   const router = useRouter();
+  // Tile width is derived from the viewport instead of fixed, so phones
+  // (narrow) get 2 per row and wider screens get more, instead of the
+  // old fixed 220px tile forcing a single column on phone widths.
+  const { width: screenWidth } = useWindowDimensions();
+  const contentWidth = Math.min(screenWidth, 960) - Spacing.four * 2;
+  const numColumns = contentWidth < 480 ? 2 : contentWidth < 720 ? 3 : 4;
+  const tileWidth = (contentWidth - Spacing.three * (numColumns - 1)) / numColumns;
   const { pickForLayerId, pickTime, pickCalendarDate, pickShareLayerIds, onlyMine } = useLocalSearchParams<{
     pickForLayerId?: string;
     pickTime?: string;
@@ -320,7 +327,7 @@ export default function ActivitiesScreen() {
         ) : (
           <View style={styles.grid}>
             {activities.map((activity) => (
-              <Card key={activity.id} style={styles.tile}>
+              <Card key={activity.id} style={[styles.tile, { width: tileWidth }]}>
                 <View style={styles.titleRow}>
                   <Badge label={ACTIVITY_TYPE_LABELS[activity.activity_type]} tone="primary" />
                 </View>
@@ -469,7 +476,6 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   tile: {
-    width: 220,
     gap: Spacing.one,
     padding: 14,
   },

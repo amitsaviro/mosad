@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect } from 'react';
 import { ActivityIndicator, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ThemedView } from '@/components/themed-view';
@@ -38,7 +39,7 @@ function RootNavigator() {
   }
 
   return (
-    <Stack>
+    <Stack screenOptions={{ headerBackTitle: 'עמוד קודם' }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
       <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
@@ -60,13 +61,15 @@ function RootNavigator() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Head>
-        <title>Instructor</title>
-      </Head>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Head>
+          <title>Instructor</title>
+        </Head>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

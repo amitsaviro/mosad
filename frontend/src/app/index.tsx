@@ -1,6 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getActivityCommentsUnreadCount } from '@/api/activities';
 import { ApiError } from '@/api/client';
@@ -37,6 +38,7 @@ export default function DashboardScreen() {
   // greeting stays roughly one line.
   const { width } = useWindowDimensions();
   const greetingTextType = width < 420 ? 'subtitle' : 'title';
+  const insets = useSafeAreaInsets();
   const [layers, setLayers] = useState<Layer[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +207,7 @@ export default function DashboardScreen() {
 
   return (
     <ThemedView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.two }]}>
         <View style={styles.header}>
           <View style={styles.headerTextBlock}>
             <ThemedText type={greetingTextType} style={styles.rtlText}>
