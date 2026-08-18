@@ -13,11 +13,17 @@ export function Checkbox({
   onToggle,
   label,
   disabled = false,
+  // Strikethrough reads as "done/crossed off" -- right for a
+  // checklist (equipment, shopping) but wrong for a "select which of
+  // these to include" list (e.g. AI schedule suggestions), where
+  // checked means "keep this", not "finished with this".
+  strikethrough = true,
 }: {
   checked: boolean;
   onToggle: () => void;
   label: string;
   disabled?: boolean;
+  strikethrough?: boolean;
 }) {
   const theme = useTheme();
 
@@ -43,7 +49,7 @@ export function Checkbox({
         <ThemedText style={[styles.check, { opacity: checked ? 1 : 0 }]}>✓</ThemedText>
       </View>
       <ThemedText
-        style={[styles.label, checked && styles.labelChecked]}
+        style={[styles.label, checked && strikethrough && styles.labelChecked]}
         themeColor={checked ? 'textSecondary' : 'text'}
       >
         {label}

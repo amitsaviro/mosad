@@ -31,6 +31,7 @@ export default function AiScheduleScreen() {
   const [meetingDays, setMeetingDays] = useState<DayOfWeek[]>([]);
   const [groupCharacter, setGroupCharacter] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSavedMessage, setProfileSavedMessage] = useState<string | null>(null);
 
   const [startDateText, setStartDateText] = useState('');
   const [endDateText, setEndDateText] = useState('');
@@ -64,13 +65,21 @@ export default function AiScheduleScreen() {
 
   function toggleMeetingDay(day: DayOfWeek) {
     setMeetingDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+    setProfileSavedMessage(null);
+  }
+
+  function handleGroupCharacterChange(text: string) {
+    setGroupCharacter(text);
+    setProfileSavedMessage(null);
   }
 
   async function handleSaveProfile() {
     setError(null);
+    setProfileSavedMessage(null);
     setIsSavingProfile(true);
     try {
       await setScheduleProfile(id, meetingDays, groupCharacter.trim() || null);
+      setProfileSavedMessage('✓ הפרופיל נשמר');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'שמירת הפרופיל נכשלה');
     } finally {
@@ -194,11 +203,16 @@ export default function AiScheduleScreen() {
           <TextField
             label='אופי הקבוצה (אופציונלי) — למשל: "שכבה תוססת ואוהבת תחרויות"'
             value={groupCharacter}
-            onChangeText={setGroupCharacter}
+            onChangeText={handleGroupCharacterChange}
             multiline
             style={styles.multiline}
           />
           <Button label="שמור פרופיל" onPress={handleSaveProfile} loading={isSavingProfile} variant="secondary" />
+          {profileSavedMessage && (
+            <ThemedText type="small" themeColor="primary" style={styles.rtlText}>
+              {profileSavedMessage}
+            </ThemedText>
+          )}
         </Card>
 
         <Card style={styles.card}>
@@ -239,6 +253,7 @@ export default function AiScheduleScreen() {
                     checked={selectedDates.has(s.date)}
                     onToggle={() => toggleSelected(s.date)}
                     label={`${toIsraeliDate(s.date)} (${DAY_OF_WEEK_LABELS[s.day_of_week]}) — ${s.activity_name}`}
+                    strikethrough={false}
                   />
                   <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
                     {ACTIVITY_TYPE_LABELS[s.activity_type]} · {s.reason}

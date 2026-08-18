@@ -74,6 +74,130 @@ function groupByStartTime<T extends { start_time: string }>(entries: T[]): T[][]
   return groups;
 }
 
+// One dated calendar entry's full card -- shared between the weekly
+// grid's "no fixed time" section and the year calendar's day detail,
+// so a given entry looks and behaves identically wherever it's shown.
+function ActivityDayCard({
+  entry,
+  shared,
+  showTime,
+  alreadyRated,
+  ratingValue,
+  canShare,
+  onViewDetails,
+  onSessionReport,
+  onShare,
+  onDelete,
+  onToggleEquipment,
+  onSetRating,
+  onSubmitRating,
+}: {
+  entry: CalendarActivity;
+  shared: string[];
+  showTime: boolean;
+  alreadyRated: boolean;
+  ratingValue: number | undefined;
+  canShare: boolean;
+  onViewDetails: () => void;
+  onSessionReport: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+  onToggleEquipment: (item: string) => void;
+  onSetRating: (rating: number) => void;
+  onSubmitRating: () => void;
+}) {
+  return (
+    <View style={styles.detailBlock}>
+      <View style={styles.dateRow}>
+        <Badge label={ACTIVITY_TYPE_LABELS[entry.activity_type]} tone="primary" />
+        {shared.length > 0 && <Badge label="🔗 משותפת" tone="shared" />}
+        <ThemedText type="smallBold" style={styles.rtlText}>
+          {entry.activity_name}
+          {showTime && entry.start_time ? ` · ${displayTime(entry.start_time)}` : ''}
+        </ThemedText>
+      </View>
+      {shared.length > 0 && (
+        <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+          🔗 משותפת עם: {shared.join(', ')}
+        </ThemedText>
+      )}
+      {entry.notes && (
+        <ThemedText type="small" style={styles.rtlText}>
+          {entry.notes}
+        </ThemedText>
+      )}
+      {entry.equipment.length > 0 && (
+        <View style={styles.list}>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            ציוד
+          </ThemedText>
+          {entry.equipment.map((item) => {
+            const checked = entry.equipment_checked.includes(item);
+            return (
+              <Checkbox
+                key={item}
+                checked={checked}
+                label={item}
+                disabled={!entry.can_manage}
+                onToggle={() => onToggleEquipment(item)}
+              />
+            );
+          })}
+        </View>
+      )}
+      <View style={styles.activityActionsRow}>
+        <Button label="👁 פרטים מלאים" variant="secondary" size="small" fullWidth={false} onPress={onViewDetails} />
+        {entry.can_manage && (
+          <Button label="📋 נוכחות והערות" variant="secondary" size="small" fullWidth={false} onPress={onSessionReport} />
+        )}
+        {entry.can_manage && canShare && (
+          <Button
+            label="🔗 שתף עם שכבות נוספות"
+            variant="secondary"
+            size="small"
+            fullWidth={false}
+            onPress={onShare}
+          />
+        )}
+        {entry.can_manage && <ConfirmButton label="הסר" onConfirm={onDelete} />}
+      </View>
+
+      {!entry.is_past && (
+        <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+          מתוכנן — ניתן לדרג לאחר שהתאריך יעבור
+        </ThemedText>
+      )}
+
+      {entry.is_past && entry.can_manage && !alreadyRated && (
+        <View style={styles.ratingBox}>
+          <ThemedText type="smallBold" style={styles.rtlText}>
+            איך זה עבר? דרגו בכוכבים
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                label={`${n} ⭐`}
+                size="small"
+                fullWidth={false}
+                variant={ratingValue === n ? 'primary' : 'ghost'}
+                onPress={() => onSetRating(n)}
+              />
+            ))}
+          </View>
+          <Button label="שלח דירוג" size="small" onPress={onSubmitRating} />
+        </View>
+      )}
+
+      {entry.is_past && alreadyRated && (
+        <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+          דורג, תודה!
+        </ThemedText>
+      )}
+    </View>
+  );
+}
+
 export default function LayerScheduleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -199,6 +323,25 @@ export default function LayerScheduleScreen() {
     weeklyEntriesByDay[d] = timedEntries
       .filter((a) => a.date === weekDates[d])
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  });
+
+  // Entries with no specific time (e.g. ones the AI scheduling agent
+  // pins) don't belong to a weekly-grid time block, but the week view
+  // should still show the week exactly as the year calendar does --
+  // so they get their own "no fixed time" section per day instead of
+  // only ever showing up in the year calendar.
+  const untimedEntriesByDay: Record<DayOfWeek, CalendarActivity[]> = {
+    sunday: [],
+    monday: [],
+    tuesday: [],
+    wednesday: [],
+    thursday: [],
+    friday: [],
+    saturday: [],
+  };
+  const untimedEntries = myCalendarActivities.filter((a) => !hasStartTime(a));
+  DAYS_OF_WEEK.forEach((d) => {
+    untimedEntriesByDay[d] = untimedEntries.filter((a) => a.date === weekDates[d]);
   });
 
   function sharingSiblings(entry: CalendarActivity): CalendarActivity[] {
@@ -636,13 +779,14 @@ export default function LayerScheduleScreen() {
             <ThemedText type="subtitle" style={styles.rtlText}>
               יום {DAY_OF_WEEK_LABELS[d]} {toIsraeliShortDate(weekDates[d])}
             </ThemedText>
-            {weeklyEntriesByDay[d].length === 0 ? (
+            {weeklyEntriesByDay[d].length === 0 && untimedEntriesByDay[d].length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
                 אין פעילויות משובצות
               </ThemedText>
             ) : (
               <View style={styles.list}>
-                {groupByStartTime(weeklyEntriesByDay[d]).map((block) => (
+                {weeklyEntriesByDay[d].length > 0 &&
+                groupByStartTime(weeklyEntriesByDay[d]).map((block) => (
                   <View
                     key={block[0].id}
                     style={[styles.blockCard, block.length > 1 && { borderColor: theme.border }]}
@@ -731,6 +875,36 @@ export default function LayerScheduleScreen() {
                     })}
                   </View>
                 ))}
+                {untimedEntriesByDay[d].length > 0 && (
+                  <View style={styles.list}>
+                    {weeklyEntriesByDay[d].length > 0 && (
+                      <ThemedText type="smallBold" style={styles.rtlText}>
+                        ללא שעה קבועה
+                      </ThemedText>
+                    )}
+                    {untimedEntriesByDay[d].map((entry) => (
+                      <Card key={entry.id} style={styles.entryCard}>
+                        <ActivityDayCard
+                          entry={entry}
+                          shared={sharedLayerNames(entry)}
+                          showTime={false}
+                          alreadyRated={ratedEntryIds.includes(entry.id)}
+                          ratingValue={ratingByEntry[entry.id]}
+                          canShare={otherLayers.length > 0}
+                          onViewDetails={() => setViewActivityId(entry.activity_id)}
+                          onSessionReport={() =>
+                            setSessionReportContext({ activityName: entry.activity_name, date: entry.date })
+                          }
+                          onShare={() => openSharePicker(entry)}
+                          onDelete={() => handleDeleteCalendarActivity(entry.id)}
+                          onToggleEquipment={(item) => handleToggleCalendarEquipment(entry, item)}
+                          onSetRating={(n) => setRatingByEntry((prev) => ({ ...prev, [entry.id]: n }))}
+                          onSubmitRating={() => handleSubmitRating(entry)}
+                        />
+                      </Card>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -789,113 +963,23 @@ export default function LayerScheduleScreen() {
                 }
 
                 const a = item.activity;
-                const alreadyRated = ratedEntryIds.includes(a.id);
-                const shared = sharedLayerNames(a);
                 return (
-                  <View key={`a-${a.id}`} style={styles.detailBlock}>
-                    <View style={styles.dateRow}>
-                      <Badge label={ACTIVITY_TYPE_LABELS[a.activity_type]} tone="primary" />
-                      {shared.length > 0 && <Badge label="🔗 משותפת" tone="shared" />}
-                      <ThemedText type="smallBold" style={styles.rtlText}>
-                        {a.activity_name}
-                        {a.start_time ? ` · ${displayTime(a.start_time)}` : ''}
-                      </ThemedText>
-                    </View>
-                    {shared.length > 0 && (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                        🔗 משותפת עם: {shared.join(', ')}
-                      </ThemedText>
-                    )}
-                    {a.notes && (
-                      <ThemedText type="small" style={styles.rtlText}>
-                        {a.notes}
-                      </ThemedText>
-                    )}
-                    {a.equipment.length > 0 && (
-                      <View style={styles.list}>
-                        <ThemedText type="smallBold" style={styles.rtlText}>
-                          ציוד
-                        </ThemedText>
-                        {a.equipment.map((item) => {
-                          const checked = a.equipment_checked.includes(item);
-                          return (
-                            <Checkbox
-                              key={item}
-                              checked={checked}
-                              label={item}
-                              disabled={!a.can_manage}
-                              onToggle={() => handleToggleCalendarEquipment(a, item)}
-                            />
-                          );
-                        })}
-                      </View>
-                    )}
-                    <View style={styles.activityActionsRow}>
-                      <Button
-                        label="👁 פרטים מלאים"
-                        variant="secondary"
-                        size="small"
-                        fullWidth={false}
-                        onPress={() => setViewActivityId(a.activity_id)}
-                      />
-                      {a.can_manage && (
-                        <Button
-                          label="📋 נוכחות והערות"
-                          variant="secondary"
-                          size="small"
-                          fullWidth={false}
-                          onPress={() =>
-                            setSessionReportContext({ activityName: a.activity_name, date: a.date })
-                          }
-                        />
-                      )}
-                      {a.can_manage && otherLayers.length > 0 && (
-                        <Button
-                          label="🔗 שתף עם שכבות נוספות"
-                          variant="secondary"
-                          size="small"
-                          fullWidth={false}
-                          onPress={() => openSharePicker(a)}
-                        />
-                      )}
-                      {a.can_manage && (
-                        <ConfirmButton label="הסר" onConfirm={() => handleDeleteCalendarActivity(a.id)} />
-                      )}
-                    </View>
-
-                    {!a.is_past && (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                        מתוכנן — ניתן לדרג לאחר שהתאריך יעבור
-                      </ThemedText>
-                    )}
-
-                    {a.is_past && a.can_manage && !alreadyRated && (
-                      <View style={styles.ratingBox}>
-                        <ThemedText type="smallBold" style={styles.rtlText}>
-                          איך זה עבר? דרגו בכוכבים
-                        </ThemedText>
-                        <View style={styles.chipRow}>
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <Button
-                              key={n}
-                              label={`${n} ⭐`}
-                              size="small"
-                              fullWidth={false}
-                              variant={ratingByEntry[a.id] === n ? 'primary' : 'ghost'}
-                              onPress={() => setRatingByEntry((prev) => ({ ...prev, [a.id]: n }))}
-                            />
-                          ))}
-                        </View>
-                        <Button label="שלח דירוג" size="small" onPress={() => handleSubmitRating(a)} />
-                      </View>
-                    )}
-
-                    {a.is_past && alreadyRated && (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                        דורג, תודה!
-                      </ThemedText>
-                    )}
-                  </View>
+                  <ActivityDayCard
+                    key={`a-${a.id}`}
+                    entry={a}
+                    shared={sharedLayerNames(a)}
+                    showTime
+                    alreadyRated={ratedEntryIds.includes(a.id)}
+                    ratingValue={ratingByEntry[a.id]}
+                    canShare={otherLayers.length > 0}
+                    onViewDetails={() => setViewActivityId(a.activity_id)}
+                    onSessionReport={() => setSessionReportContext({ activityName: a.activity_name, date: a.date })}
+                    onShare={() => openSharePicker(a)}
+                    onDelete={() => handleDeleteCalendarActivity(a.id)}
+                    onToggleEquipment={(item) => handleToggleCalendarEquipment(a, item)}
+                    onSetRating={(n) => setRatingByEntry((prev) => ({ ...prev, [a.id]: n }))}
+                    onSubmitRating={() => handleSubmitRating(a)}
+                  />
                 );
               })}
             </View>
