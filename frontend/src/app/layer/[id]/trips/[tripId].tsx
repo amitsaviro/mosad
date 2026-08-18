@@ -126,12 +126,18 @@ export default function TripDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
 
+  // Always push straight to a known route instead of router.back():
+  // this screen sits 3 levels deep (layer -> trips list -> trip file),
+  // the deepest nesting in the app, and canGoBack()/back() get
+  // unreliable that deep on web (e.g. after a refresh) -- they can
+  // bounce back to this very screen instead of going up a level,
+  // trapping the user in a loop.
   function handleBackToTrips() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push(`/layer/${id}/trips`);
-    }
+    router.push(`/layer/${id}/trips`);
+  }
+
+  function handleBackToLayer() {
+    router.push(`/layer/${id}`);
   }
 
   async function handleRenameTrip(name: string) {
@@ -386,7 +392,10 @@ export default function TripDetailScreen() {
               textType="title"
               onSave={handleRenameTrip}
             />
-            <Button label="חזרה לתיקי הטיול" variant="ghost" size="small" fullWidth={false} onPress={handleBackToTrips} />
+            <View style={styles.headerBackButtons}>
+              <Button label="חזרה לתיקי הטיול" variant="ghost" size="small" fullWidth={false} onPress={handleBackToTrips} />
+              <Button label="חזרה לשכבה" variant="ghost" size="small" fullWidth={false} onPress={handleBackToLayer} />
+            </View>
           </View>
           <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
             {dateRangeLabel}
@@ -748,6 +757,12 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  headerBackButtons: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: Spacing.two,

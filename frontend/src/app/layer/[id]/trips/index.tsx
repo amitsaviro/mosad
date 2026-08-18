@@ -101,16 +101,13 @@ export default function LayerTripsScreen() {
     }
   }
 
-  // Prefer popping back to wherever the user actually came from (so
-  // repeated visits here don't keep pushing new "layer" entries onto
-  // the stack) -- only push a fresh navigation if there's nowhere to
-  // pop back to (e.g. a direct link).
+  // Always push straight to the layer instead of router.back(): this
+  // screen sits 2 levels deep (layer -> trips list), and canGoBack()/
+  // back() get unreliable that deep on web (e.g. after a refresh) --
+  // they can bounce back to the very trip screen we're trying to
+  // leave instead of the layer, trapping the user in a loop.
   function handleBackToLayer() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push(`/layer/${id}`);
-    }
+    router.push(`/layer/${id}`);
   }
 
   function dateRangeLabel(trip: TripSummary): string {
