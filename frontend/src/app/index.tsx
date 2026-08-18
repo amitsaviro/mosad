@@ -213,15 +213,13 @@ export default function DashboardScreen() {
             <ThemedText type={greetingTextType} style={styles.rtlText}>
               שלום, {user?.full_name}
             </ThemedText>
-            <View style={styles.badgeRow}>
-              <Badge
-                label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
-                tone={isAdmin ? 'primary' : 'neutral'}
-              />
-              <Link href="/profile">
-                <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>
-              </Link>
-            </View>
+            <Badge
+              label={isAdmin ? 'מנהל' : user?.role === 'counselor' ? 'מדריך' : 'עדיין לא שייך לאף קבוצה'}
+              tone={isAdmin ? 'primary' : 'neutral'}
+            />
+            <Link href="/profile" style={styles.accountSettingsLink}>
+              <ThemedText type="linkPrimary">הגדרות חשבון</ThemedText>
+            </Link>
             {user?.institution_name && (
               <EditableText
                 value={user.institution_name}
@@ -443,10 +441,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     flex: 1,
   },
-  badgeRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.three,
+  accountSettingsLink: {
+    alignSelf: 'flex-end',
   },
   headerActions: {
     alignItems: 'flex-end',

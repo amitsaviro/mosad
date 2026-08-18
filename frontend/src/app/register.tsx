@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
@@ -40,70 +40,65 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.select({ ios: 'padding', default: undefined })}
-    >
-      <ThemedView style={styles.flex}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <ThemedText type="title" style={styles.rtlText}>
-            הרשמה
-          </ThemedText>
+    <ThemedView style={styles.flex}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ThemedText type="title" style={styles.rtlText}>
+          הרשמה
+        </ThemedText>
 
-          <Card style={styles.card}>
-            <TextField label="שם מלא" placeholder="ישראל ישראלי" value={fullName} onChangeText={setFullName} />
-            <TextField
-              label="אימייל"
-              placeholder="you@example.com"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TextField
-              label="סיסמה"
-              placeholder="לפחות 8 תווים"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-            {password.length > 0 && (
-              <View style={styles.passwordHintRow}>
-                <ThemedText style={{ color: isPasswordValid ? theme.success : theme.danger }}>
-                  {isPasswordValid ? '✓' : '✗'}
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  style={[styles.rtlText, { color: isPasswordValid ? theme.success : theme.danger }]}
-                >
-                  {isPasswordValid ? 'הסיסמה עומדת בדרישת האורך' : `נדרשים לפחות ${MIN_PASSWORD_LENGTH} תווים`}
-                </ThemedText>
-              </View>
-            )}
-
-            {error && (
-              <ThemedText themeColor="danger" style={styles.rtlText}>
-                {error}
+        <Card style={styles.card}>
+          <TextField label="שם מלא" placeholder="ישראל ישראלי" value={fullName} onChangeText={setFullName} />
+          <TextField
+            label="אימייל"
+            placeholder="you@example.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextField
+            label="סיסמה"
+            placeholder="לפחות 8 תווים"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+          {password.length > 0 && (
+            <View style={styles.passwordHintRow}>
+              <ThemedText style={{ color: isPasswordValid ? theme.success : theme.danger }}>
+                {isPasswordValid ? '✓' : '✗'}
               </ThemedText>
-            )}
+              <ThemedText
+                type="small"
+                style={[styles.rtlText, { color: isPasswordValid ? theme.success : theme.danger }]}
+              >
+                {isPasswordValid ? 'הסיסמה עומדת בדרישת האורך' : `נדרשים לפחות ${MIN_PASSWORD_LENGTH} תווים`}
+              </ThemedText>
+            </View>
+          )}
 
-            <Button
-              label="הרשמה"
-              onPress={handleSubmit}
-              loading={isSubmitting}
-              disabled={password.length > 0 && !isPasswordValid}
-            />
-          </Card>
+          {error && (
+            <ThemedText themeColor="danger" style={styles.rtlText}>
+              {error}
+            </ThemedText>
+          )}
 
-          <Link href="/login" style={styles.link}>
-            <ThemedText type="linkPrimary">כבר יש לך חשבון? התחברות</ThemedText>
-          </Link>
-        </ScrollView>
-      </ThemedView>
-    </KeyboardAvoidingView>
+          <Button
+            label="הרשמה"
+            onPress={handleSubmit}
+            loading={isSubmitting}
+            disabled={password.length > 0 && !isPasswordValid}
+          />
+        </Card>
+
+        <Link href="/login" style={styles.link}>
+          <ThemedText type="linkPrimary">כבר יש לך חשבון? התחברות</ThemedText>
+        </Link>
+      </ScrollView>
+    </ThemedView>
   );
 }
 

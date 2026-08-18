@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
@@ -33,53 +33,48 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.select({ ios: 'padding', default: undefined })}
-    >
-      <ThemedView style={styles.flex}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <ThemedText type="title" style={styles.rtlText}>
-            התחברות
-          </ThemedText>
+    <ThemedView style={styles.flex}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ThemedText type="title" style={styles.rtlText}>
+          התחברות
+        </ThemedText>
 
-          <Card style={styles.card}>
-            <TextField
-              label="אימייל"
-              placeholder="you@example.com"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              accessibilityLabel="אימייל"
-            />
-            <TextField
-              label="סיסמה"
-              placeholder="••••••••"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              accessibilityLabel="סיסמה"
-            />
+        <Card style={styles.card}>
+          <TextField
+            label="אימייל"
+            placeholder="you@example.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+            accessibilityLabel="אימייל"
+          />
+          <TextField
+            label="סיסמה"
+            placeholder="••••••••"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            accessibilityLabel="סיסמה"
+          />
 
-            {error && (
-              <ThemedText themeColor="danger" style={styles.rtlText}>
-                {error}
-              </ThemedText>
-            )}
+          {error && (
+            <ThemedText themeColor="danger" style={styles.rtlText}>
+              {error}
+            </ThemedText>
+          )}
 
-            <Button label="התחבר" onPress={handleSubmit} loading={isSubmitting} />
-          </Card>
+          <Button label="התחבר" onPress={handleSubmit} loading={isSubmitting} />
+        </Card>
 
-          <Link href="/register" style={styles.link}>
-            <ThemedText type="linkPrimary">אין לך חשבון? הרשמה</ThemedText>
-          </Link>
-        </ScrollView>
-      </ThemedView>
-    </KeyboardAvoidingView>
+        <Link href="/register" style={styles.link}>
+          <ThemedText type="linkPrimary">אין לך חשבון? הרשמה</ThemedText>
+        </Link>
+      </ScrollView>
+    </ThemedView>
   );
 }
 

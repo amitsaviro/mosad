@@ -4,7 +4,7 @@
 // only meet part of the week don't have "today" reliably map to a real
 // session, so the entry point is the activity itself, not a calendar.
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { listAttendanceForDate, markAttendance } from '@/api/attendance';
 import { ApiError } from '@/api/client';
@@ -120,100 +120,105 @@ export function SessionReportModal({
 
   return (
     <Modal visible={!!layerId} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.headerRow}>
-            <IconButton glyph="✕" accessibilityLabel="סגור" onPress={onClose} />
-            <ThemedText type="subtitle" style={styles.rtlText} numberOfLines={2}>
-              נוכחות והערות — {activityName}
-            </ThemedText>
-          </View>
-
-          <TextField
-            label="תאריך (יום/חודש/שנה)"
-            value={dateText}
-            onChangeText={setDateText}
-            onBlur={handleDateBlur}
-          />
-
-          {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
-          {savedMessage && <ThemedText themeColor="success" style={styles.rtlText}>{savedMessage}</ThemedText>}
-
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-            {participants.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                אין חניכים פעילים בשכבה הזו.
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: 'padding', default: undefined })}>
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Pressable style={[styles.sheet, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.headerRow}>
+              <IconButton glyph="✕" accessibilityLabel="סגור" onPress={onClose} />
+              <ThemedText type="subtitle" style={styles.rtlText} numberOfLines={2}>
+                נוכחות והערות — {activityName}
               </ThemedText>
-            ) : (
-              participants.map((p) => (
-                <View key={p.id} style={[styles.participantBox, { borderColor: theme.border }]}>
-                  <View style={styles.participantRow}>
-                    <ThemedText type="smallBold" style={styles.rtlText}>
-                      {p.full_name}
-                    </ThemedText>
-                    <View style={styles.toggleRow}>
-                      <Button
-                        label="✓ נכח"
-                        size="small"
-                        fullWidth={false}
-                        variant={(marks[p.id] ?? true) ? 'primary' : 'ghost'}
-                        onPress={() => setMarks((prev) => ({ ...prev, [p.id]: true }))}
-                      />
-                      <Button
-                        label="✗ נעדר"
-                        size="small"
-                        fullWidth={false}
-                        variant={!(marks[p.id] ?? true) ? 'danger' : 'ghost'}
-                        onPress={() => setMarks((prev) => ({ ...prev, [p.id]: false }))}
-                      />
-                    </View>
-                  </View>
+            </View>
 
-                  {openNoteFor === p.id ? (
-                    <View style={styles.noteRow}>
-                      <View style={styles.noteField}>
-                        <TextField placeholder="הערה על החניך" value={noteDraft} onChangeText={setNoteDraft} />
+            <TextField
+              label="תאריך (יום/חודש/שנה)"
+              value={dateText}
+              onChangeText={setDateText}
+              onBlur={handleDateBlur}
+            />
+
+            {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+            {savedMessage && <ThemedText themeColor="success" style={styles.rtlText}>{savedMessage}</ThemedText>}
+
+            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+              {participants.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                  אין חניכים פעילים בשכבה הזו.
+                </ThemedText>
+              ) : (
+                participants.map((p) => (
+                  <View key={p.id} style={[styles.participantBox, { borderColor: theme.border }]}>
+                    <View style={styles.participantRow}>
+                      <ThemedText type="smallBold" style={styles.rtlText}>
+                        {p.full_name}
+                      </ThemedText>
+                      <View style={styles.toggleRow}>
+                        <Button
+                          label="✓ נכח"
+                          size="small"
+                          fullWidth={false}
+                          variant={(marks[p.id] ?? true) ? 'primary' : 'ghost'}
+                          onPress={() => setMarks((prev) => ({ ...prev, [p.id]: true }))}
+                        />
+                        <Button
+                          label="✗ נעדר"
+                          size="small"
+                          fullWidth={false}
+                          variant={!(marks[p.id] ?? true) ? 'danger' : 'ghost'}
+                          onPress={() => setMarks((prev) => ({ ...prev, [p.id]: false }))}
+                        />
                       </View>
-                      <Button label="הוסף" size="small" fullWidth={false} onPress={() => handleAddNote(p.id)} />
-                      <Button
-                        label="ביטול"
-                        variant="ghost"
-                        size="small"
-                        fullWidth={false}
+                    </View>
+
+                    {openNoteFor === p.id ? (
+                      <View style={styles.noteRow}>
+                        <View style={styles.noteField}>
+                          <TextField placeholder="הערה על החניך" value={noteDraft} onChangeText={setNoteDraft} />
+                        </View>
+                        <Button label="הוסף" size="small" fullWidth={false} onPress={() => handleAddNote(p.id)} />
+                        <Button
+                          label="ביטול"
+                          variant="ghost"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => {
+                            setOpenNoteFor(null);
+                            setNoteDraft('');
+                          }}
+                        />
+                      </View>
+                    ) : (
+                      <ThemedText
+                        type="small"
+                        themeColor="textSecondary"
+                        style={styles.rtlText}
                         onPress={() => {
-                          setOpenNoteFor(null);
+                          setOpenNoteFor(p.id);
                           setNoteDraft('');
                         }}
-                      />
-                    </View>
-                  ) : (
-                    <ThemedText
-                      type="small"
-                      themeColor="textSecondary"
-                      style={styles.rtlText}
-                      onPress={() => {
-                        setOpenNoteFor(p.id);
-                        setNoteDraft('');
-                      }}
-                    >
-                      {noteAddedFor.includes(p.id) ? '✓ הערה נוספה — להוסיף עוד?' : '📝 הוספת הערה'}
-                    </ThemedText>
-                  )}
-                </View>
-              ))
-            )}
-          </ScrollView>
+                      >
+                        {noteAddedFor.includes(p.id) ? '✓ הערה נוספה — להוסיף עוד?' : '📝 הוספת הערה'}
+                      </ThemedText>
+                    )}
+                  </View>
+                ))
+              )}
+            </ScrollView>
 
-          {participants.length > 0 && (
-            <Button label="שמור נוכחות" onPress={handleSaveAttendance} loading={isSaving} />
-          )}
+            {participants.length > 0 && (
+              <Button label="שמור נוכחות" onPress={handleSaveAttendance} loading={isSaving} />
+            )}
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

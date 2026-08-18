@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect } from 'react';
-import { ActivityIndicator, useColorScheme } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
@@ -39,22 +39,28 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerBackTitle: 'עמוד קודם' }}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
-      <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
-      <Stack.Screen name="layer/[id]/index" options={{ title: 'שכבה' }} />
-      <Stack.Screen name="layer/[id]/schedule" options={{ title: 'לוח' }} />
-      <Stack.Screen name="layer/[id]/attendance" options={{ title: 'נוכחות' }} />
-      <Stack.Screen name="layer/[id]/chat" options={{ title: 'צ׳אט' }} />
-      <Stack.Screen name="layer/[id]/trips/index" options={{ title: 'תיקי טיול' }} />
-      <Stack.Screen name="layer/[id]/trips/[tripId]" options={{ title: 'תיק טיול' }} />
-      <Stack.Screen name="layer/[id]/ai-schedule" options={{ title: 'לו״ז חכם' }} />
-      <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
-      <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
-      <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />
-      <Stack.Screen name="activities/[id]" options={{ title: 'פעילות' }} />
-    </Stack>
+    // Wrapping the whole navigator (rather than each screen individually)
+    // is what makes the keyboard push scrollable form content up above
+    // itself instead of covering the focused field -- every screen gets
+    // this for free instead of needing its own KeyboardAvoidingView.
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', default: undefined })}>
+      <Stack screenOptions={{ headerBackTitle: 'עמוד קודם' }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ title: 'התחברות', headerShown: false }} />
+        <Stack.Screen name="register" options={{ title: 'הרשמה', headerShown: false }} />
+        <Stack.Screen name="layer/[id]/index" options={{ title: 'שכבה' }} />
+        <Stack.Screen name="layer/[id]/schedule" options={{ title: 'לוח' }} />
+        <Stack.Screen name="layer/[id]/attendance" options={{ title: 'נוכחות' }} />
+        <Stack.Screen name="layer/[id]/chat" options={{ title: 'צ׳אט' }} />
+        <Stack.Screen name="layer/[id]/trips/index" options={{ title: 'תיקי טיול' }} />
+        <Stack.Screen name="layer/[id]/trips/[tripId]" options={{ title: 'תיק טיול' }} />
+        <Stack.Screen name="layer/[id]/ai-schedule" options={{ title: 'לו״ז חכם' }} />
+        <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
+        <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
+        <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />
+        <Stack.Screen name="activities/[id]" options={{ title: 'פעילות' }} />
+      </Stack>
+    </KeyboardAvoidingView>
   );
 }
 

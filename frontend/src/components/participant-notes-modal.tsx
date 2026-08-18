@@ -2,7 +2,7 @@
 // the roster without navigating away, so jotting something down mid-session
 // stays a two-tap action.
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { createParticipantNote, deleteParticipantNote, listParticipantNotes } from '@/api/participantNotes';
@@ -82,57 +82,62 @@ export function ParticipantNotesModal({
 
   return (
     <Modal visible={!!participantId} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.headerRow}>
-            <IconButton glyph="✕" accessibilityLabel="סגור" onPress={onClose} />
-            <ThemedText type="subtitle" style={styles.rtlText} numberOfLines={2}>
-              הערות — {participantName}
-            </ThemedText>
-          </View>
-
-          {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
-
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-            {notes.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                אין עדיין הערות על החניך הזה.
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: 'padding', default: undefined })}>
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Pressable style={[styles.sheet, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.headerRow}>
+              <IconButton glyph="✕" accessibilityLabel="סגור" onPress={onClose} />
+              <ThemedText type="subtitle" style={styles.rtlText} numberOfLines={2}>
+                הערות — {participantName}
               </ThemedText>
-            ) : (
-              notes.map((note) => (
-                <View key={note.id} style={[styles.noteCard, { borderColor: theme.border }]}>
-                  <View style={styles.noteHeaderRow}>
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                      {note.author_name} · {formatNoteTimestamp(note.created_at)}
-                    </ThemedText>
-                    {canManage && <ConfirmButton label="מחק" onConfirm={() => handleDeleteNote(note.id)} />}
-                  </View>
-                  <ThemedText style={styles.rtlText}>{note.body}</ThemedText>
-                </View>
-              ))
-            )}
-          </ScrollView>
-
-          {canManage && (
-            <View style={[styles.addBox, { borderTopColor: theme.border }]}>
-              <TextField
-                label="הוספת הערה"
-                placeholder="למשל: התקשה בפעילות היום, כדאי לעקוב"
-                value={body}
-                onChangeText={setBody}
-                multiline
-                style={styles.multiline}
-              />
-              <Button label="הוסף הערה" onPress={handleAddNote} loading={isSaving} />
             </View>
-          )}
+
+            {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+              {notes.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                  אין עדיין הערות על החניך הזה.
+                </ThemedText>
+              ) : (
+                notes.map((note) => (
+                  <View key={note.id} style={[styles.noteCard, { borderColor: theme.border }]}>
+                    <View style={styles.noteHeaderRow}>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                        {note.author_name} · {formatNoteTimestamp(note.created_at)}
+                      </ThemedText>
+                      {canManage && <ConfirmButton label="מחק" onConfirm={() => handleDeleteNote(note.id)} />}
+                    </View>
+                    <ThemedText style={styles.rtlText}>{note.body}</ThemedText>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {canManage && (
+              <View style={[styles.addBox, { borderTopColor: theme.border }]}>
+                <TextField
+                  label="הוספת הערה"
+                  placeholder="למשל: התקשה בפעילות היום, כדאי לעקוב"
+                  value={body}
+                  onChangeText={setBody}
+                  multiline
+                  style={styles.multiline}
+                />
+                <Button label="הוסף הערה" onPress={handleAddNote} loading={isSaving} />
+              </View>
+            )}
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
