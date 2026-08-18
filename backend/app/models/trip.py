@@ -55,6 +55,18 @@ class Trip(UUIDPKMixin, TimestampMixin, Base):
     confirmations: Mapped[list["TripParticipantConfirmation"]] = relationship(
         back_populates="trip", cascade="all, delete-orphan"
     )
+    # Additional layers this trip is shared with, beyond its home
+    # layer_id above -- a trip for a multi-layer outing (e.g. two
+    # שכבות going on the same bus) without duplicating its equipment/
+    # shopping/documents/schedule per layer the way CalendarActivity
+    # sharing does (that works there because it has no nested data).
+    shared_layers: Mapped[list["TripLayer"]] = relationship(
+        back_populates="trip", cascade="all, delete-orphan"
+    )
+    contacts: Mapped[list["TripContact"]] = relationship(
+        back_populates="trip", cascade="all, delete-orphan", order_by="TripContact.created_at"
+    )
+    meals: Mapped[list["TripMeal"]] = relationship(back_populates="trip", cascade="all, delete-orphan")
 
 
 class TripEquipmentItem(UUIDPKMixin, TimestampMixin, Base):
@@ -129,3 +141,53 @@ class TripParticipantConfirmation(UUIDPKMixin, TimestampMixin, Base):
 
     trip: Mapped["Trip"] = relationship(back_populates="confirmations")
     participant: Mapped["Participant"] = relationship()
+
+
+class TripLayer(UUIDPKMixin, TimestampMixin, Base):
+    """A layer this trip is shared with, beyond its home layer -- lets
+    e.g. two שכבות going on the same trip see and manage one shared
+    trip file instead of each having their own duplicate copy."""
+    __tablename__ = "trip_layers"
+    __table_args__ = (UniqueConstraint("trip_id", "layer_id", name="uq_trip_layer"),)
+
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    layer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("layers.id", ondelete="CASCADE"), nullable=False
+    )
+
+    trip: Mapped["Trip"] = relationship(back_populates="shared_layers")
+    layer: Mapped["Layer"] = relationship()
+
+
+class TripContact(UUIDPKMixin, TimestampMixin, Base):
+    """An important phone number for the trip -- attraction manager,
+    bus driver, etc. Just a label+phone pair, nothing fancier."""
+    __tablename__ = "trip_contacts"
+
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    phone: Mapped[str] = mapped_column(String, nullable=False)
+
+    trip: Mapped["Trip"] = relationship(back_populates="contacts")
+
+
+class TripMeal(UUIDPKMixin, TimestampMixin, Base):
+    """One meal slot (breakfast/lunch/dinner) on one date of the trip --
+    one row per date+meal_type that actually has a menu set, so a
+    multi-day trip just gets more rows instead of needing its days
+    modeled anywhere; the date range is already on Trip itself."""
+    __tablename__ = "trip_meals"
+    __table_args__ = (UniqueConstraint("trip_id", "date", "meal_type", name="uq_trip_meal_slot"),)
+
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    date: Mapped[date_type] = mapped_column(Date, nullable=False)
+    meal_type: Mapped[str] = mapped_column(String, nullable=False)  # 'breakfast' | 'lunch' | 'dinner'
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    trip: Mapped["Trip"] = relationship(back_populates="meals")

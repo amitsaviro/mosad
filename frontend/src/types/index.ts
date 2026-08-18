@@ -35,6 +35,7 @@ export type Participant = {
   full_name: string;
   date_of_birth: string | null;
   guardian_contact: string | null;
+  allergies: string | null;
   is_active: boolean;
 };
 
@@ -232,6 +233,27 @@ export type TripConfirmation = {
   participant_id: string;
   participant_name: string;
   confirmed: boolean;
+  allergies: string | null;
+};
+
+export type TripContact = {
+  id: string;
+  label: string;
+  phone: string;
+};
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+
+export type TripMeal = {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  meal_type: MealType;
+  description: string;
+};
+
+export type TripLayerSummary = {
+  id: string;
+  name: string;
 };
 
 export type TripSummary = {
@@ -242,6 +264,7 @@ export type TripSummary = {
   start_date: string; // "YYYY-MM-DD"
   end_date: string; // "YYYY-MM-DD"
   can_manage: boolean;
+  is_shared: boolean;
   created_at: string;
 };
 
@@ -249,6 +272,7 @@ export type Trip = {
   id: string;
   layer_id: string;
   layer_name: string;
+  shared_layers: TripLayerSummary[];
   name: string;
   destination: string | null;
   start_date: string;
@@ -256,11 +280,14 @@ export type Trip = {
   notes: string | null;
   created_by_name: string;
   can_manage: boolean;
+  can_delete: boolean;
   created_at: string;
   equipment: TripEquipmentItem[];
   shopping: TripShoppingItem[];
   documents: TripDocument[];
   schedule: TripScheduleItem[];
   confirmations: TripConfirmation[];
+  contacts: TripContact[];
+  meals: TripMeal[];
 };
 

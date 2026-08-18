@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
-import { getLayer } from '@/api/layers';
+import { getLayer, listLayers } from '@/api/layers';
 import { createTrip, listTrips } from '@/api/trips';
+import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { TextField } from '@/components/text-field';
@@ -20,6 +21,7 @@ export default function LayerTripsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [layer, setLayer] = useState<Layer | null>(null);
+  const [otherLayers, setOtherLayers] = useState<Layer[]>([]);
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,17 +30,27 @@ export default function LayerTripsScreen() {
   const [startDateText, setStartDateText] = useState('');
   const [endDateText, setEndDateText] = useState('');
   const [notes, setNotes] = useState('');
+  const [shareLayerIds, setShareLayerIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   async function loadData() {
     setError(null);
     try {
-      const [fetchedLayer, fetchedTrips] = await Promise.all([getLayer(id), listTrips(id)]);
+      const [fetchedLayer, fetchedTrips, fetchedLayers] = await Promise.all([
+        getLayer(id),
+        listTrips(id),
+        listLayers(),
+      ]);
       setLayer(fetchedLayer);
       setTrips(fetchedTrips);
+      setOtherLayers(fetchedLayers.filter((l) => l.can_manage && l.id !== id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'טעינת תיקי הטיול נכשלה');
     }
+  }
+
+  function toggleShareLayer(layerId: string) {
+    setShareLayerIds((prev) => (prev.includes(layerId) ? prev.filter((l) => l !== layerId) : [...prev, layerId]));
   }
 
   useEffect(() => {
@@ -73,12 +85,14 @@ export default function LayerTripsScreen() {
         start_date: startIso,
         end_date: endIso,
         notes: notes.trim() || undefined,
+        share_layer_ids: shareLayerIds,
       });
       setName('');
       setDestination('');
       setStartDateText('');
       setEndDateText('');
       setNotes('');
+      setShareLayerIds([]);
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'יצירת הטיול נכשלה');
@@ -125,13 +139,16 @@ export default function LayerTripsScreen() {
           <View style={styles.list}>
             {trips.map((trip) => (
               <Card key={trip.id} style={styles.tripCard}>
-                <ThemedText
-                  type="smallBold"
-                  style={styles.rtlText}
-                  onPress={() => router.push(`/layer/${id}/trips/${trip.id}`)}
-                >
-                  {trip.name}
-                </ThemedText>
+                <View style={styles.tripCardHeaderRow}>
+                  <ThemedText
+                    type="smallBold"
+                    style={styles.rtlText}
+                    onPress={() => router.push(`/layer/${id}/trips/${trip.id}`)}
+                  >
+                    {trip.name}
+                  </ThemedText>
+                  {trip.is_shared && <Badge label="🔗 משותף" tone="shared" />}
+                </View>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
                   {dateRangeLabel(trip)}
                   {trip.destination ? ` · ${trip.destination}` : ''}
@@ -155,6 +172,25 @@ export default function LayerTripsScreen() {
             </ThemedText>
             <TextField label="שם הטיול" placeholder="למשל: טיול לצפון" value={name} onChangeText={setName} />
             <TextField label="יעד (אופציונלי)" value={destination} onChangeText={setDestination} />
+            {otherLayers.length > 0 && (
+              <>
+                <ThemedText type="smallBold" style={styles.rtlText}>
+                  גם עבור שכבות נוספות (משותף) — למשל טיול לכמה שכבות באותו אוטובוס
+                </ThemedText>
+                <View style={styles.chipRow}>
+                  {otherLayers.map((l) => (
+                    <Button
+                      key={l.id}
+                      label={l.name}
+                      size="small"
+                      fullWidth={false}
+                      variant={shareLayerIds.includes(l.id) ? 'primary' : 'ghost'}
+                      onPress={() => toggleShareLayer(l.id)}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
             <TextField
               label="תאריך התחלה (יום/חודש/שנה) — ברירת מחדל: היום"
               placeholder="14/12/2026"
@@ -204,11 +240,22 @@ const styles = StyleSheet.create({
   tripCard: {
     gap: Spacing.one,
   },
+  tripCardHeaderRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
   card: {
     gap: Spacing.two,
   },
   multiline: {
     minHeight: 60,
     textAlignVertical: 'top',
+  },
+  chipRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
 });

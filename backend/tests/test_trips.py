@@ -255,3 +255,163 @@ def test_only_manager_can_mutate_trip(client):
     )
 
     assert response.status_code == 404
+
+
+def test_only_creator_can_delete_trip(client):
+    admin_token, admin_user, layer = _make_admin_with_layer(client, "tripdeletecreator@test.com")
+    trip = _create_trip(client, admin_token, layer["id"]).json()
+
+    # A counselor assigned to the same layer can manage the trip
+    # (edit) but not delete it -- only the creator can.
+    counselor_token, counselor_user = _register(client, "tripdeletecounselor@test.com")
+    client.post(
+        "/api/v1/layers/join", json={"join_code": layer["join_code"]}, headers=_auth_headers(counselor_token)
+    )
+
+    forbidden = client.delete(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(counselor_token))
+    assert forbidden.status_code == 403
+
+    # But that counselor can still edit it, and can_delete reflects the truth.
+    detail_as_counselor = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(counselor_token)).json()
+    assert detail_as_counselor["can_manage"] is True
+    assert detail_as_counselor["can_delete"] is False
+
+    detail_as_creator = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert detail_as_creator["can_delete"] is True
+
+    allowed = client.delete(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token))
+    assert allowed.status_code == 204
+
+
+def test_trip_sharing_across_layers(client):
+    admin_token, _, layer_a = _make_admin_with_layer(client, "tripshareadmin@test.com", layer_name="Layer A")
+    layer_b = client.post(
+        "/api/v1/layers", json={"name": "Layer B"}, headers=_auth_headers(admin_token)
+    ).json()
+    participant_a = _create_participant(client, admin_token, layer_a["id"], "מ-שכבה א")
+    participant_b = _create_participant(client, admin_token, layer_b["id"], "מ-שכבה ב")
+
+    trip = _create_trip(client, admin_token, layer_a["id"], share_layer_ids=[layer_b["id"]]).json()
+    assert trip["is_shared"] is True
+
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert [sl["id"] for sl in detail["shared_layers"]] == [layer_b["id"]]
+
+    # Shows up in both layers' trip lists.
+    for layer in (layer_a, layer_b):
+        listed = client.get(f"/api/v1/layers/{layer['id']}/trips", headers=_auth_headers(admin_token)).json()
+        assert len(listed) == 1
+        assert listed[0]["id"] == trip["id"]
+
+    # Roster is the union of both layers' active participants.
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    confirmed_ids = {c["participant_id"] for c in detail["confirmations"]}
+    assert participant_a["id"] in confirmed_ids
+    assert participant_b["id"] in confirmed_ids
+
+    # A counselor only assigned to layer_b can also see/manage the trip.
+    counselor_token, _ = _register(client, "tripshareoutsider@test.com")
+    client.post(
+        "/api/v1/layers/join", json={"join_code": layer_b["join_code"]}, headers=_auth_headers(counselor_token)
+    )
+    as_counselor = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(counselor_token))
+    assert as_counselor.status_code == 200
+    assert as_counselor.json()["can_manage"] is True
+
+    # Unsharing removes it from layer_b's list and from the roster.
+    unshare = client.delete(
+        f"/api/v1/trips/{trip['id']}/share/{layer_b['id']}", headers=_auth_headers(admin_token)
+    )
+    assert unshare.status_code == 204
+    listed_b = client.get(f"/api/v1/layers/{layer_b['id']}/trips", headers=_auth_headers(admin_token)).json()
+    assert listed_b == []
+
+
+def test_share_trip_requires_managing_target_layer(client):
+    admin_token, _, layer_a = _make_admin_with_layer(client, "tripshareadmin2@test.com", layer_name="Layer A")
+    other_admin_token, _, other_layer = _make_admin_with_layer(
+        client, "tripshareother2@test.com", layer_name="Foreign Layer", institution_name="Other Institution"
+    )
+    trip = _create_trip(client, admin_token, layer_a["id"]).json()
+
+    response = client.post(
+        f"/api/v1/trips/{trip['id']}/share",
+        json={"layer_id": other_layer["id"]},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 404
+
+
+def test_trip_contacts(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "tripcontacts@test.com")
+    trip = _create_trip(client, admin_token, layer["id"]).json()
+
+    response = client.post(
+        f"/api/v1/trips/{trip['id']}/contacts",
+        json={"label": "נהג האוטובוס", "phone": "0521234567"},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 201
+    contact = response.json()
+
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert len(detail["contacts"]) == 1
+    assert detail["contacts"][0]["phone"] == "0521234567"
+
+    delete_response = client.delete(
+        f"/api/v1/trips/{trip['id']}/contacts/{contact['id']}", headers=_auth_headers(admin_token)
+    )
+    assert delete_response.status_code == 204
+    after_delete = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert after_delete["contacts"] == []
+
+
+def test_trip_meals(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "tripmeals@test.com")
+    today = date.today().isoformat()
+    trip = _create_trip(client, admin_token, layer["id"], start_date=today).json()
+
+    set_response = client.put(
+        f"/api/v1/trips/{trip['id']}/meals",
+        json={"date": today, "meal_type": "breakfast", "description": "כריכים וחביתה"},
+        headers=_auth_headers(admin_token),
+    )
+    assert set_response.status_code == 204
+
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert len(detail["meals"]) == 1
+    assert detail["meals"][0]["meal_type"] == "breakfast"
+    assert detail["meals"][0]["description"] == "כריכים וחביתה"
+
+    # Updating the same date+meal_type overwrites, doesn't duplicate.
+    client.put(
+        f"/api/v1/trips/{trip['id']}/meals",
+        json={"date": today, "meal_type": "breakfast", "description": "דגנים וחלב"},
+        headers=_auth_headers(admin_token),
+    )
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert len(detail["meals"]) == 1
+    assert detail["meals"][0]["description"] == "דגנים וחלב"
+
+    # Clearing (blank description) removes the slot entirely.
+    client.put(
+        f"/api/v1/trips/{trip['id']}/meals",
+        json={"date": today, "meal_type": "breakfast", "description": "   "},
+        headers=_auth_headers(admin_token),
+    )
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert detail["meals"] == []
+
+
+def test_confirmation_roster_includes_allergies(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "tripallergy@test.com")
+    participant = _create_participant(client, admin_token, layer["id"], "עם אלרגיה")
+    client.patch(
+        f"/api/v1/participants/{participant['id']}",
+        json={"allergies": "אגוזים, בוטנים"},
+        headers=_auth_headers(admin_token),
+    )
+    trip = _create_trip(client, admin_token, layer["id"]).json()
+
+    detail = client.get(f"/api/v1/trips/{trip['id']}", headers=_auth_headers(admin_token)).json()
+    assert detail["confirmations"][0]["allergies"] == "אגוזים, בוטנים"

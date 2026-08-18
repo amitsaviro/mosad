@@ -43,6 +43,8 @@ export default function LayerDetailScreen() {
   const [notesParticipant, setNotesParticipant] = useState<Participant | null>(null);
   const [editingDobId, setEditingDobId] = useState<string | null>(null);
   const [dobDraft, setDobDraft] = useState('');
+  const [editingAllergiesId, setEditingAllergiesId] = useState<string | null>(null);
+  const [allergiesDraft, setAllergiesDraft] = useState('');
   const [birthdayPopupDismissed, setBirthdayPopupDismissed] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
@@ -138,6 +140,16 @@ export default function LayerDetailScreen() {
     try {
       await updateParticipant(participantId, { date_of_birth: parsed });
       setEditingDobId(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'העדכון נכשל');
+    }
+  }
+
+  async function handleSaveAllergies(participantId: string) {
+    try {
+      await updateParticipant(participantId, { allergies: allergiesDraft.trim() || null });
+      setEditingAllergiesId(null);
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'העדכון נכשל');
@@ -406,6 +418,43 @@ export default function LayerDetailScreen() {
                         }}
                       >
                         {item.date_of_birth ? `🎂 תאריך לידה: ${toIsraeliDate(item.date_of_birth)}` : '+ הוספת תאריך לידה'}
+                      </ThemedText>
+                    ))}
+                  {layer?.can_manage &&
+                    (editingAllergiesId === item.id ? (
+                      <View style={styles.dobEditRow}>
+                        <View style={styles.dobEditField}>
+                          <TextField
+                            placeholder="למשל: בוטנים, גלוטן"
+                            value={allergiesDraft}
+                            onChangeText={setAllergiesDraft}
+                          />
+                        </View>
+                        <Button
+                          label="שמור"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => handleSaveAllergies(item.id)}
+                        />
+                        <Button
+                          label="ביטול"
+                          variant="ghost"
+                          size="small"
+                          fullWidth={false}
+                          onPress={() => setEditingAllergiesId(null)}
+                        />
+                      </View>
+                    ) : (
+                      <ThemedText
+                        type="small"
+                        themeColor={item.allergies ? 'danger' : 'textSecondary'}
+                        style={styles.rtlText}
+                        onPress={() => {
+                          setAllergiesDraft(item.allergies ?? '');
+                          setEditingAllergiesId(item.id);
+                        }}
+                      >
+                        {item.allergies ? `⚠️ אלרגיות/מגבלות מזון: ${item.allergies}` : '+ הוספת אלרגיות/מגבלות מזון'}
                       </ThemedText>
                     ))}
                 </Card>

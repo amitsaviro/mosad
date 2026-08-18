@@ -17,6 +17,7 @@ from app.models.participant_note import ParticipantNote
 from app.models.trip import Trip
 from app.models.user import User, UserRole
 from app.services.layer_service import user_can_manage_layer, user_can_view_layer
+from app.services.trip_service import get_trip_associated_layers
 
 # This tells FastAPI's auto-generated /docs page how to collect the
 # token from clients (as a header), and where "login" conceptually lives.
@@ -195,15 +196,15 @@ def get_viewable_trip(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Trip:
-    """READ access: anyone in the trip's own institution, same rule as
-    get_viewable_layer since a trip is just a layer's own sub-resource."""
+    """READ access: anyone who can view ANY of the trip's associated
+    layers (its home layer, or any layer it's been shared with)."""
     not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="תיק הטיול לא נמצא")
     trip = db.get(Trip, trip_id)
     if trip is None:
         raise not_found
 
-    layer = db.get(Layer, trip.layer_id)
-    if layer is None or not user_can_view_layer(current_user, layer):
+    layers = get_trip_associated_layers(db, trip)
+    if not any(user_can_view_layer(current_user, layer) for layer in layers):
         raise not_found
     return trip
 
@@ -213,16 +214,36 @@ def get_manageable_trip(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Trip:
-    """WRITE access: admin of this institution, or a counselor assigned
-    to the trip's own layer -- covers every nested mutation (equipment,
-    shopping, documents, schedule, confirmations), not just the trip
-    itself, so a single dependency is reused everywhere."""
+    """WRITE (edit) access: admin of this institution, or a counselor
+    assigned to ANY of the trip's associated layers -- covers every
+    nested mutation (equipment, shopping, documents, schedule,
+    confirmations, contacts, meals), not just the trip itself, so a
+    single dependency is reused everywhere. Deleting the trip itself is
+    narrower -- see get_deletable_trip."""
     not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="תיק הטיול לא נמצא")
     trip = db.get(Trip, trip_id)
     if trip is None:
         raise not_found
 
-    layer = db.get(Layer, trip.layer_id)
-    if layer is None or not user_can_manage_layer(db, current_user, layer):
+    layers = get_trip_associated_layers(db, trip)
+    if not any(user_can_manage_layer(db, current_user, layer) for layer in layers):
         raise not_found
+    return trip
+
+
+def get_deletable_trip(
+    trip_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Trip:
+    """DELETE access: only the trip's own creator -- everyone else who
+    can manage the trip's layers can still edit it (get_manageable_trip),
+    just not delete it. 403 rather than 404 since they DO have real
+    access to the trip, they're just not allowed this one action."""
+    trip = get_manageable_trip(trip_id, current_user, db)
+    if trip.created_by_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="רק מי שיצר את תיק הטיול יכול למחוק אותו",
+        )
     return trip

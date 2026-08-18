@@ -1,5 +1,14 @@
 import { api } from '@/api/client';
-import { Trip, TripDocument, TripEquipmentItem, TripScheduleItem, TripShoppingItem, TripSummary } from '@/types';
+import {
+  MealType,
+  Trip,
+  TripContact,
+  TripDocument,
+  TripEquipmentItem,
+  TripScheduleItem,
+  TripShoppingItem,
+  TripSummary,
+} from '@/types';
 
 export type TripInput = {
   name: string;
@@ -7,6 +16,7 @@ export type TripInput = {
   start_date: string; // "YYYY-MM-DD"
   end_date?: string;
   notes?: string;
+  share_layer_ids?: string[];
 };
 
 export function listTrips(layerId: string) {
@@ -81,4 +91,24 @@ export function deleteTripScheduleItem(tripId: string, itemId: string) {
 
 export function setTripConfirmation(tripId: string, participantId: string, confirmed: boolean) {
   return api.patch<void>(`/trips/${tripId}/confirmations/${participantId}`, { confirmed });
+}
+
+export function addTripContact(tripId: string, label: string, phone: string) {
+  return api.post<TripContact>(`/trips/${tripId}/contacts`, { label, phone });
+}
+
+export function deleteTripContact(tripId: string, contactId: string) {
+  return api.delete<void>(`/trips/${tripId}/contacts/${contactId}`);
+}
+
+export function setTripMeal(tripId: string, date: string, mealType: MealType, description: string) {
+  return api.put<void>(`/trips/${tripId}/meals`, { date, meal_type: mealType, description });
+}
+
+export function shareTrip(tripId: string, layerId: string) {
+  return api.post<void>(`/trips/${tripId}/share`, { layer_id: layerId });
+}
+
+export function unshareTrip(tripId: string, layerId: string) {
+  return api.delete<void>(`/trips/${tripId}/share/${layerId}`);
 }

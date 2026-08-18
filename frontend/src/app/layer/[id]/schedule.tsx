@@ -18,6 +18,7 @@ import { ActivityDetailModal } from '@/components/activity-detail-modal';
 import { Badge, SHARED_COLOR } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { Checkbox } from '@/components/checkbox';
 import { ConfirmButton } from '@/components/confirm-button';
 import { IconButton } from '@/components/icon-button';
 import { MonthCalendar } from '@/components/month-calendar';
@@ -679,18 +680,13 @@ export default function LayerScheduleScreen() {
                             {entry.equipment.map((item) => {
                               const checked = entry.equipment_checked.includes(item);
                               return (
-                                <ThemedText
+                                <Checkbox
                                   key={item}
-                                  type="small"
-                                  style={styles.rtlText}
-                                  onPress={
-                                    entry.can_manage
-                                      ? () => handleToggleCalendarEquipment(entry, item)
-                                      : undefined
-                                  }
-                                >
-                                  {checked ? '☑' : '☐'} {item}
-                                </ThemedText>
+                                  checked={checked}
+                                  label={item}
+                                  disabled={!entry.can_manage}
+                                  onToggle={() => handleToggleCalendarEquipment(entry, item)}
+                                />
                               );
                             })}
                           </View>
@@ -823,14 +819,13 @@ export default function LayerScheduleScreen() {
                         {a.equipment.map((item) => {
                           const checked = a.equipment_checked.includes(item);
                           return (
-                            <ThemedText
+                            <Checkbox
                               key={item}
-                              type="small"
-                              style={styles.rtlText}
-                              onPress={a.can_manage ? () => handleToggleCalendarEquipment(a, item) : undefined}
-                            >
-                              {checked ? '☑' : '☐'} {item}
-                            </ThemedText>
+                              checked={checked}
+                              label={item}
+                              disabled={!a.can_manage}
+                              onToggle={() => handleToggleCalendarEquipment(a, item)}
+                            />
                           );
                         })}
                       </View>

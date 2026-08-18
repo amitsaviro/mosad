@@ -17,8 +17,11 @@ from app.models.participant import Participant
 from app.models.participant_note import ParticipantNote
 from app.models.trip import (
     Trip,
+    TripContact,
     TripDocument,
     TripEquipmentItem,
+    TripLayer,
+    TripMeal,
     TripParticipantConfirmation,
     TripScheduleItem,
     TripShoppingItem,
@@ -49,4 +52,7 @@ __all__ = [
     "TripDocument",
     "TripScheduleItem",
     "TripParticipantConfirmation",
+    "TripLayer",
+    "TripContact",
+    "TripMeal",
 ]

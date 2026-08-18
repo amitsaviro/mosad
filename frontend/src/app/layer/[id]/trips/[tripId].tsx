@@ -5,32 +5,47 @@ import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
+import { listLayers } from '@/api/layers';
 import {
+  addTripContact,
   addTripDocument,
   addTripEquipmentItem,
   addTripScheduleItem,
   addTripShoppingItem,
   deleteTrip,
+  deleteTripContact,
   deleteTripDocument,
   deleteTripEquipmentItem,
   deleteTripScheduleItem,
   deleteTripShoppingItem,
   getTrip,
   setTripConfirmation,
+  setTripMeal,
+  shareTrip,
   toggleTripEquipmentItem,
   toggleTripShoppingItem,
+  unshareTrip,
   updateTrip,
 } from '@/api/trips';
+import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { Checkbox } from '@/components/checkbox';
 import { ConfirmButton } from '@/components/confirm-button';
 import { EditableText } from '@/components/editable-text';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { Trip } from '@/types';
-import { fromIsraeliDate, toIsraeliDate } from '@/utils/calendar';
+import { Layer, MealType, Trip } from '@/types';
+import { addDaysUtc, formatIsoDate, fromIsraeliDate, parseIsoDate, toIsraeliDate } from '@/utils/calendar';
+
+const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: 'ארוחת בוקר',
+  lunch: 'ארוחת צהריים',
+  dinner: 'ארוחת ערב',
+};
 
 function toApiTime(text: string): string | null {
   const match = text.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
@@ -43,10 +58,28 @@ function displayTime(apiTime: string): string {
   return apiTime.slice(0, 5);
 }
 
+function mealKey(date: string, mealType: MealType): string {
+  return `${date}__${mealType}`;
+}
+
+// Every calendar date from start_date to end_date inclusive -- the
+// meal plan gets one card per day, breakfast/lunch/dinner each.
+function tripDateRange(startIso: string, endIso: string): string[] {
+  const dates: string[] = [];
+  let cur = parseIsoDate(startIso);
+  const end = parseIsoDate(endIso);
+  while (cur.getTime() <= end.getTime()) {
+    dates.push(formatIsoDate(cur));
+    cur = addDaysUtc(cur, 1);
+  }
+  return dates;
+}
+
 export default function TripDetailScreen() {
   const { id, tripId } = useLocalSearchParams<{ id: string; tripId: string }>();
   const router = useRouter();
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [otherLayers, setOtherLayers] = useState<Layer[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [destinationDraft, setDestinationDraft] = useState('');
@@ -62,16 +95,27 @@ export default function TripDetailScreen() {
   const [scheduleTime, setScheduleTime] = useState('');
   const [scheduleTitle, setScheduleTitle] = useState('');
   const [scheduleNotes, setScheduleNotes] = useState('');
+  const [contactLabel, setContactLabel] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [mealDrafts, setMealDrafts] = useState<Record<string, string>>({});
+  const [isSavingMealDate, setIsSavingMealDate] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
     try {
-      const fetched = await getTrip(tripId);
+      const [fetched, fetchedLayers] = await Promise.all([getTrip(tripId), listLayers()]);
       setTrip(fetched);
       setDestinationDraft(fetched.destination ?? '');
       setStartDateDraft(toIsraeliDate(fetched.start_date));
       setEndDateDraft(toIsraeliDate(fetched.end_date));
       setNotesDraft(fetched.notes ?? '');
+      const sharedIds = new Set([fetched.layer_id, ...fetched.shared_layers.map((l) => l.id)]);
+      setOtherLayers(fetchedLayers.filter((l) => l.can_manage && !sharedIds.has(l.id)));
+      const draftMap: Record<string, string> = {};
+      for (const meal of fetched.meals) {
+        draftMap[mealKey(meal.date, meal.meal_type)] = meal.description;
+      }
+      setMealDrafts(draftMap);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'טעינת תיק הטיול נכשלה');
     }
@@ -259,6 +303,64 @@ export default function TripDetailScreen() {
     }
   }
 
+  async function handleShareLayer(layerId: string) {
+    try {
+      await shareTrip(tripId, layerId);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'השיתוף נכשל');
+    }
+  }
+
+  async function handleUnshareLayer(layerId: string) {
+    try {
+      await unshareTrip(tripId, layerId);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'הסרת השיתוף נכשלה');
+    }
+  }
+
+  async function handleAddContact() {
+    if (!contactLabel.trim() || !contactPhone.trim()) {
+      setError('יש למלא תיאור ומספר טלפון');
+      return;
+    }
+    setError(null);
+    try {
+      await addTripContact(tripId, contactLabel.trim(), contactPhone.trim());
+      setContactLabel('');
+      setContactPhone('');
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'ההוספה נכשלה');
+    }
+  }
+
+  async function handleDeleteContact(contactId: string) {
+    try {
+      await deleteTripContact(tripId, contactId);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'המחיקה נכשלה');
+    }
+  }
+
+  async function handleSaveMealsForDate(date: string) {
+    setError(null);
+    setIsSavingMealDate(date);
+    try {
+      for (const mealType of MEAL_TYPES) {
+        await setTripMeal(tripId, date, mealType, mealDrafts[mealKey(date, mealType)] ?? '');
+      }
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'שמירת התפריט נכשלה');
+    } finally {
+      setIsSavingMealDate(null);
+    }
+  }
+
   if (!trip) {
     return (
       <ThemedView style={styles.flex}>
@@ -290,10 +392,46 @@ export default function TripDetailScreen() {
             {dateRangeLabel}
             {trip.destination ? ` · ${trip.destination}` : ''} · נוצר על ידי {trip.created_by_name}
           </ThemedText>
-          {trip.can_manage && <ConfirmButton label="מחק תיק טיול" onConfirm={handleDeleteTrip} />}
+          {trip.can_delete && <ConfirmButton label="מחק תיק טיול" onConfirm={handleDeleteTrip} />}
         </View>
 
         {error && <ThemedText themeColor="danger" style={styles.rtlText}>{error}</ThemedText>}
+
+        <ThemedText type="subtitle" style={styles.rtlText}>
+          🔗 שכבות משותפות
+        </ThemedText>
+        <Card style={styles.card}>
+          <View style={styles.chipRow}>
+            <Badge label={trip.layer_name} tone="primary" />
+            {trip.shared_layers.map((l) => (
+              <View key={l.id} style={styles.sharedLayerChip}>
+                <Badge label={l.name} tone="shared" />
+                {trip.can_manage && (
+                  <ConfirmButton label="הסר שיתוף" onConfirm={() => handleUnshareLayer(l.id)} />
+                )}
+              </View>
+            ))}
+          </View>
+          {trip.can_manage && otherLayers.length > 0 && (
+            <>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                שתפו את תיק הטיול עם שכבה נוספת (למשל טיול לכמה שכבות באותו אוטובוס):
+              </ThemedText>
+              <View style={styles.chipRow}>
+                {otherLayers.map((l) => (
+                  <Button
+                    key={l.id}
+                    label={`+ ${l.name}`}
+                    size="small"
+                    fullWidth={false}
+                    variant="ghost"
+                    onPress={() => handleShareLayer(l.id)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+        </Card>
 
         {trip.can_manage && (
           <Card style={styles.card}>
@@ -383,12 +521,12 @@ export default function TripDetailScreen() {
             <View style={styles.list}>
               {trip.equipment.map((item) => (
                 <View key={item.id} style={styles.checklistRow}>
-                  <ThemedText
-                    style={styles.rtlText}
-                    onPress={trip.can_manage ? () => handleToggleEquipment(item.id, !item.checked) : undefined}
-                  >
-                    {item.checked ? '☑' : '☐'} {item.label}
-                  </ThemedText>
+                  <Checkbox
+                    checked={item.checked}
+                    label={item.label}
+                    disabled={!trip.can_manage}
+                    onToggle={() => handleToggleEquipment(item.id, !item.checked)}
+                  />
                   {trip.can_manage && (
                     <ConfirmButton label="הסר" onConfirm={() => handleDeleteEquipment(item.id)} />
                   )}
@@ -418,12 +556,12 @@ export default function TripDetailScreen() {
             <View style={styles.list}>
               {trip.shopping.map((item) => (
                 <View key={item.id} style={styles.checklistRow}>
-                  <ThemedText
-                    style={styles.rtlText}
-                    onPress={trip.can_manage ? () => handleToggleShopping(item.id, !item.checked) : undefined}
-                  >
-                    {item.checked ? '☑' : '☐'} {item.label}
-                  </ThemedText>
+                  <Checkbox
+                    checked={item.checked}
+                    label={item.label}
+                    disabled={!trip.can_manage}
+                    onToggle={() => handleToggleShopping(item.id, !item.checked)}
+                  />
                   {trip.can_manage && (
                     <ConfirmButton label="הסר" onConfirm={() => handleDeleteShopping(item.id)} />
                   )}
@@ -473,6 +611,84 @@ export default function TripDetailScreen() {
         </Card>
 
         <ThemedText type="subtitle" style={styles.rtlText}>
+          📞 אנשי קשר חשובים
+        </ThemedText>
+        <Card style={styles.card}>
+          {trip.contacts.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              עדיין אין אנשי קשר (למשל מנהל אטרקציה, נהג אוטובוס).
+            </ThemedText>
+          ) : (
+            <View style={styles.list}>
+              {trip.contacts.map((contact) => (
+                <View key={contact.id} style={styles.checklistRow}>
+                  <ThemedText
+                    type="linkPrimary"
+                    style={styles.rtlText}
+                    onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+                  >
+                    {contact.label}: {contact.phone}
+                  </ThemedText>
+                  {trip.can_manage && (
+                    <ConfirmButton label="הסר" onConfirm={() => handleDeleteContact(contact.id)} />
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+          {trip.can_manage && (
+            <View style={styles.addRow}>
+              <View style={styles.grow}>
+                <TextField placeholder="למשל: נהג האוטובוס" label="תיאור" value={contactLabel} onChangeText={setContactLabel} />
+              </View>
+              <View style={styles.grow}>
+                <TextField placeholder="050-1234567" label="טלפון" value={contactPhone} onChangeText={setContactPhone} />
+              </View>
+            </View>
+          )}
+          {trip.can_manage && <Button label="הוסף איש קשר" onPress={handleAddContact} variant="secondary" />}
+        </Card>
+
+        <ThemedText type="subtitle" style={styles.rtlText}>
+          🍽️ תפריטים
+        </ThemedText>
+        <View style={styles.list}>
+          {tripDateRange(trip.start_date, trip.end_date).map((date) => (
+            <Card key={date} style={styles.card}>
+              <ThemedText type="smallBold" style={styles.rtlText}>
+                {toIsraeliDate(date)}
+              </ThemedText>
+              {MEAL_TYPES.map((mealType) =>
+                trip.can_manage ? (
+                  <TextField
+                    key={mealType}
+                    label={MEAL_LABELS[mealType]}
+                    placeholder="למשל: כריכים וירקות"
+                    value={mealDrafts[mealKey(date, mealType)] ?? ''}
+                    onChangeText={(text) =>
+                      setMealDrafts((prev) => ({ ...prev, [mealKey(date, mealType)]: text }))
+                    }
+                  />
+                ) : (
+                  <ThemedText key={mealType} type="small" style={styles.rtlText}>
+                    {MEAL_LABELS[mealType]}: {mealDrafts[mealKey(date, mealType)] || '—'}
+                  </ThemedText>
+                )
+              )}
+              {trip.can_manage && (
+                <Button
+                  label="שמור תפריט היום"
+                  size="small"
+                  variant="secondary"
+                  loading={isSavingMealDate === date}
+                  onPress={() => handleSaveMealsForDate(date)}
+                />
+              )}
+            </Card>
+          ))}
+        </View>
+
+        <ThemedText type="subtitle" style={styles.rtlText}>
           ✅ אישורי הגעה ({confirmedCount}/{trip.confirmations.length})
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
@@ -481,15 +697,22 @@ export default function TripDetailScreen() {
         <Card style={styles.card}>
           {trip.confirmations.length === 0 ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-              אין חניכים פעילים בשכבה הזו.
+              אין חניכים פעילים בשכבות של תיק הטיול.
             </ThemedText>
           ) : (
             <View style={styles.list}>
               {trip.confirmations.map((c) => (
                 <View key={c.participant_id} style={styles.confirmationRow}>
-                  <ThemedText type="smallBold" style={styles.rtlText}>
-                    {c.participant_name}
-                  </ThemedText>
+                  <View style={styles.confirmationTextBlock}>
+                    <ThemedText type="smallBold" style={styles.rtlText}>
+                      {c.participant_name}
+                    </ThemedText>
+                    {c.allergies && (
+                      <ThemedText type="small" themeColor="danger" style={styles.rtlText}>
+                        ⚠️ {c.allergies}
+                      </ThemedText>
+                    )}
+                  </View>
                   <Button
                     label={c.confirmed ? '✓ הגיע/ה' : 'טרם אושר'}
                     size="small"
@@ -569,6 +792,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.two,
   },
+  confirmationTextBlock: {
+    gap: 2,
+  },
   addRow: {
     flexDirection: 'row-reverse',
     alignItems: 'flex-end',
@@ -579,5 +805,15 @@ const styles = StyleSheet.create({
   },
   timeField: {
     width: 110,
+  },
+  chipRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  sharedLayerChip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
 });

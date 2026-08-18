@@ -7,39 +7,48 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_manageable_trip, get_viewable_trip
+from app.core.deps import get_current_user, get_deletable_trip, get_manageable_trip, get_viewable_trip
 from app.database import get_db
 from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.trip import (
     TripChecklistItemUpdate,
     TripConfirmationSet,
+    TripContactCreate,
+    TripContactOut,
     TripDocumentCreate,
     TripDocumentOut,
     TripEquipmentItemCreate,
     TripEquipmentItemOut,
+    TripMealSet,
     TripOut,
     TripScheduleItemCreate,
     TripScheduleItemOut,
     TripScheduleItemUpdate,
+    TripShareLayer,
     TripShoppingItemCreate,
     TripShoppingItemOut,
     TripUpdate,
 )
 from app.services.trip_service import (
+    add_contact,
     add_document,
     add_equipment_item,
     add_schedule_item,
     add_shopping_item,
+    delete_contact,
     delete_document,
     delete_equipment_item,
     delete_schedule_item,
     delete_shopping_item,
     delete_trip,
     set_confirmation,
+    set_meal,
+    share_trip_with_layer,
     to_trip_out,
     toggle_equipment_item,
     toggle_shopping_item,
+    unshare_trip_from_layer,
     update_schedule_item,
     update_trip,
 )
@@ -68,8 +77,25 @@ def update_trip_endpoint(
 
 
 @router.delete("/{trip_id}", status_code=204)
-def delete_trip_endpoint(trip: Trip = Depends(get_manageable_trip), db: Session = Depends(get_db)):
+def delete_trip_endpoint(trip: Trip = Depends(get_deletable_trip), db: Session = Depends(get_db)):
     delete_trip(db, trip)
+
+
+@router.post("/{trip_id}/share", status_code=204)
+def share_trip_endpoint(
+    payload: TripShareLayer,
+    trip: Trip = Depends(get_manageable_trip),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    share_trip_with_layer(db, current_user, trip, payload.layer_id)
+
+
+@router.delete("/{trip_id}/share/{layer_id}", status_code=204)
+def unshare_trip_endpoint(
+    layer_id: uuid.UUID, trip: Trip = Depends(get_manageable_trip), db: Session = Depends(get_db)
+):
+    unshare_trip_from_layer(db, trip, layer_id)
 
 
 @router.post("/{trip_id}/equipment", response_model=TripEquipmentItemOut, status_code=201)
@@ -173,3 +199,25 @@ def set_confirmation_endpoint(
     db: Session = Depends(get_db),
 ):
     set_confirmation(db, trip, participant_id, payload.confirmed)
+
+
+@router.post("/{trip_id}/contacts", response_model=TripContactOut, status_code=201)
+def add_contact_endpoint(
+    payload: TripContactCreate, trip: Trip = Depends(get_manageable_trip), db: Session = Depends(get_db)
+):
+    contact = add_contact(db, trip, payload)
+    return TripContactOut(id=contact.id, label=contact.label, phone=contact.phone)
+
+
+@router.delete("/{trip_id}/contacts/{contact_id}", status_code=204)
+def delete_contact_endpoint(
+    contact_id: uuid.UUID, trip: Trip = Depends(get_manageable_trip), db: Session = Depends(get_db)
+):
+    delete_contact(db, trip, contact_id)
+
+
+@router.put("/{trip_id}/meals", status_code=204)
+def set_meal_endpoint(
+    payload: TripMealSet, trip: Trip = Depends(get_manageable_trip), db: Session = Depends(get_db)
+):
+    set_meal(db, trip, payload.date, payload.meal_type, payload.description)

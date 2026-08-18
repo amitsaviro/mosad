@@ -11,6 +11,7 @@ class ParticipantCreate(BaseModel):
     full_name: str
     date_of_birth: date | None = None
     guardian_contact: str | None = None
+    allergies: str | None = None
 
     @field_validator("full_name")
     @classmethod
@@ -26,6 +27,7 @@ class ParticipantUpdate(BaseModel):
     full_name: str | None = None
     date_of_birth: date | None = None
     guardian_contact: str | None = None
+    allergies: str | None = None
     is_active: bool | None = None
 
 
@@ -35,6 +37,7 @@ class ParticipantOut(BaseModel):
     full_name: str
     date_of_birth: date | None
     guardian_contact: str | None
+    allergies: str | None
     is_active: bool
 
     model_config = {"from_attributes": True}
