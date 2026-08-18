@@ -23,6 +23,11 @@ class LayerScheduleProfileOut(BaseModel):
 class AiScheduleRequest(BaseModel):
     start_date: date
     end_date: date
+    # Activities to leave out of consideration entirely -- e.g. ones
+    # the counselor explicitly unchecked from the previous draft this
+    # session, so regenerating doesn't just propose the same rejected
+    # activity again.
+    exclude_activity_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class AiScheduleSuggestion(BaseModel):
@@ -43,3 +48,8 @@ class AiScheduleResponse(BaseModel):
     # the response fell back to the plain ratings-based heuristic, or
     # when there simply wasn't enough data to propose anything.
     warning: str | None = None
+    # Transparency into what the agent actually did -- how many
+    # generate/validate rounds it took (1 if it got it right first
+    # try), and any problems found and self-corrected along the way.
+    attempts_used: int = 1
+    validation_notes: list[str] = Field(default_factory=list)

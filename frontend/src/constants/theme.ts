@@ -15,12 +15,17 @@ export const Colors = {
     backgroundSelected: '#E8ECF7',
     textSecondary: '#60646C',
     border: '#E2E5EB',
-    primary: '#4C6FFF',
-    primaryPressed: '#3A57DB',
+    // Darkened from the original #4C6FFF/#E5484D/#2FAE60 -- those read
+    // fine as fills, but fell short of WCAG AA's 4.5:1 text-contrast
+    // minimum both as white-on-color button labels and as colored
+    // text (e.g. ThemedText type="linkPrimary") on the light
+    // background/card. These pass 4.5:1+ against both.
+    primary: '#3A61FF',
+    primaryPressed: '#2E4FDB',
     onPrimary: '#FFFFFF',
-    danger: '#E5484D',
-    dangerPressed: '#C93D42',
-    success: '#2FAE60',
+    danger: '#DF2026',
+    dangerPressed: '#C01B21',
+    success: '#238248',
     card: '#FFFFFF',
     cardShadow: 'rgba(20, 24, 40, 0.08)',
   },

@@ -288,4 +288,6 @@ def ai_schedule_endpoint(
         raise HTTPException(status_code=422, detail=f"טווח התאריכים ארוך מדי (עד {MAX_AI_SCHEDULE_RANGE_DAYS} יום)")
 
     profile = get_schedule_profile(db, layer)
-    return generate_schedule(db, layer, profile, payload.start_date, payload.end_date)
+    return generate_schedule(
+        db, layer, profile, payload.start_date, payload.end_date, payload.exclude_activity_ids
+    )

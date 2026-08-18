@@ -309,5 +309,7 @@ export type AiScheduleResponse = {
   suggestions: AiScheduleSuggestion[];
   skipped_holiday_dates: string[];
   warning: string | null;
+  attempts_used: number;
+  validation_notes: string[];
 };
 

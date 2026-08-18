@@ -10,11 +10,17 @@ export type ThemedTextProps = TextProps & {
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
   const theme = useTheme();
+  // linkPrimary defaults to the theme's primary color unless a color
+  // was explicitly requested -- previously styles.linkPrimary hardcoded
+  // its own color below, which silently overrode this (array styles
+  // apply in order, last wins) and ignored both light/dark mode and
+  // any themeColor prop entirely.
+  const resolvedColor = themeColor ?? (type === 'linkPrimary' ? 'primary' : 'text');
 
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        { color: theme[resolvedColor] },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
         type === 'small' && styles.small,
@@ -63,7 +69,6 @@ const styles = StyleSheet.create({
   linkPrimary: {
     lineHeight: 30,
     fontSize: 14,
-    color: '#3c87f7',
   },
   code: {
     fontFamily: Fonts.mono,

@@ -231,3 +231,82 @@ def test_only_manager_can_request_ai_schedule(client):
         headers=_auth_headers(other_token),
     )
     assert response.status_code == 404
+
+
+def test_ai_schedule_proposes_a_full_session_per_date(client):
+    """With opener/main/closing activities all available, each meeting
+    date should get all three -- not just one undifferentiated pick."""
+    admin_token, _, layer = _make_admin_with_layer(client, "aischeduleslots@test.com")
+    _create_activity(client, admin_token, name="פתיחה", activity_type="opener")
+    _create_activity(client, admin_token, name="מרכזית", activity_type="main")
+    _create_activity(client, admin_token, name="סיכום", activity_type="closing")
+    client.put(
+        f"/api/v1/layers/{layer['id']}/schedule-profile",
+        json={"meeting_days": ["tuesday"]},
+        headers=_auth_headers(admin_token),
+    )
+    start = _next_weekday(2)
+
+    response = client.post(
+        f"/api/v1/layers/{layer['id']}/ai-schedule",
+        json={"start_date": start.isoformat(), "end_date": start.isoformat()},
+        headers=_auth_headers(admin_token),
+    )
+
+    assert response.status_code == 200
+    suggestions = response.json()["suggestions"]
+    types = sorted(s["activity_type"] for s in suggestions)
+    assert types == ["closing", "main", "opener"]
+    assert all(s["date"] == start.isoformat() for s in suggestions)
+
+
+def test_ai_schedule_excludes_requested_activity_ids(client):
+    admin_token, _, layer = _make_admin_with_layer(client, "aischeduleexclude@test.com")
+    keep = _create_activity(client, admin_token, name="להשאיר")
+    drop = _create_activity(client, admin_token, name="להחריג")
+    client.put(
+        f"/api/v1/layers/{layer['id']}/schedule-profile",
+        json={"meeting_days": ["wednesday"]},
+        headers=_auth_headers(admin_token),
+    )
+    start = _next_weekday(3)
+
+    response = client.post(
+        f"/api/v1/layers/{layer['id']}/ai-schedule",
+        json={
+            "start_date": start.isoformat(),
+            "end_date": start.isoformat(),
+            "exclude_activity_ids": [drop["id"]],
+        },
+        headers=_auth_headers(admin_token),
+    )
+
+    assert response.status_code == 200
+    suggestion_ids = {s["activity_id"] for s in response.json()["suggestions"]}
+    assert drop["id"] not in suggestion_ids
+    assert keep["id"] in suggestion_ids
+
+
+def test_ai_schedule_heuristic_path_reports_one_attempt_no_notes(client):
+    """No ANTHROPIC_API_KEY in the test env -- the heuristic fallback
+    never runs the LangGraph retry loop at all, so it should always
+    report attempts_used=1 and no validation notes."""
+    admin_token, _, layer = _make_admin_with_layer(client, "aischeduletransparency@test.com")
+    _create_activity(client, admin_token)
+    client.put(
+        f"/api/v1/layers/{layer['id']}/schedule-profile",
+        json={"meeting_days": ["thursday"]},
+        headers=_auth_headers(admin_token),
+    )
+    start = _next_weekday(4)
+
+    response = client.post(
+        f"/api/v1/layers/{layer['id']}/ai-schedule",
+        json={"start_date": start.isoformat(), "end_date": start.isoformat()},
+        headers=_auth_headers(admin_token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attempts_used"] == 1
+    assert body["validation_notes"] == []

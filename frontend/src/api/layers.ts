@@ -52,9 +52,15 @@ export function setScheduleProfile(layerId: string, meetingDays: DayOfWeek[], gr
   });
 }
 
-export function generateAiSchedule(layerId: string, startDate: string, endDate: string) {
+export function generateAiSchedule(
+  layerId: string,
+  startDate: string,
+  endDate: string,
+  excludeActivityIds: string[] = []
+) {
   return api.post<AiScheduleResponse>(`/layers/${layerId}/ai-schedule`, {
     start_date: startDate,
     end_date: endDate,
+    exclude_activity_ids: excludeActivityIds,
   });
 }

@@ -39,9 +39,19 @@ export default function AiScheduleScreen() {
   const [suggestions, setSuggestions] = useState<AiScheduleSuggestion[]>([]);
   const [skippedHolidays, setSkippedHolidays] = useState<string[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
-  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const [attemptsUsed, setAttemptsUsed] = useState(1);
+  const [validationNotes, setValidationNotes] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitMessage, setCommitMessage] = useState<string | null>(null);
+  // Activities the counselor explicitly unchecked in a previous draft
+  // this session -- carried into the next "generate" call so
+  // regenerating doesn't just propose the same rejected activity again.
+  const [rejectedActivityIds, setRejectedActivityIds] = useState<Set<string>>(new Set());
+
+  function suggestionKey(s: AiScheduleSuggestion): string {
+    return `${s.date}__${s.activity_type}`;
+  }
 
   async function loadData() {
     setError(null);
@@ -101,12 +111,20 @@ export default function AiScheduleScreen() {
     setError(null);
     setCommitMessage(null);
     setIsGenerating(true);
+    // Whatever's still in the current draft but was left unchecked
+    // counts as an implicit rejection -- fold it in before asking for
+    // a fresh draft, so regenerating doesn't just re-propose it.
+    const newlyRejected = suggestions.filter((s) => !selectedKeys.has(suggestionKey(s))).map((s) => s.activity_id);
+    const nextRejected = new Set([...rejectedActivityIds, ...newlyRejected]);
+    setRejectedActivityIds(nextRejected);
     try {
-      const response = await generateAiSchedule(id, startIso, endIso);
+      const response = await generateAiSchedule(id, startIso, endIso, Array.from(nextRejected));
       setSuggestions(response.suggestions);
       setSkippedHolidays(response.skipped_holiday_dates);
       setWarning(response.warning);
-      setSelectedDates(new Set(response.suggestions.map((s) => s.date)));
+      setAttemptsUsed(response.attempts_used);
+      setValidationNotes(response.validation_notes);
+      setSelectedKeys(new Set(response.suggestions.map(suggestionKey)));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'בניית ההצעה נכשלה');
     } finally {
@@ -114,20 +132,20 @@ export default function AiScheduleScreen() {
     }
   }
 
-  function toggleSelected(date: string) {
-    setSelectedDates((prev) => {
+  function toggleSelected(key: string) {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(date)) {
-        next.delete(date);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(date);
+        next.add(key);
       }
       return next;
     });
   }
 
   async function handleCommit() {
-    const chosen = suggestions.filter((s) => selectedDates.has(s.date));
+    const chosen = suggestions.filter((s) => selectedKeys.has(suggestionKey(s)));
     if (chosen.length === 0) return;
     setError(null);
     setCommitMessage(null);
@@ -142,8 +160,8 @@ export default function AiScheduleScreen() {
         // losing everything else that DID get added.
       }
     }
-    setSuggestions((prev) => prev.filter((s) => !selectedDates.has(s.date)));
-    setSelectedDates(new Set());
+    setSuggestions((prev) => prev.filter((s) => !selectedKeys.has(suggestionKey(s))));
+    setSelectedKeys(new Set());
     setIsCommitting(false);
     setCommitMessage(
       succeeded === chosen.length
@@ -156,6 +174,27 @@ export default function AiScheduleScreen() {
     () => skippedHolidays.map((d) => toIsraeliDate(d)).join(', '),
     [skippedHolidays]
   );
+
+  // Suggestions arrive already sorted by (date, slot order) from the
+  // backend -- grouping consecutive same-date entries turns a flat
+  // list of up to 3-per-date items into one card per meeting date.
+  const suggestionsByDate = useMemo(() => {
+    const groups: { date: string; dayOfWeek: AiScheduleSuggestion['day_of_week']; items: AiScheduleSuggestion[] }[] =
+      [];
+    for (const s of suggestions) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === s.date) {
+        last.items.push(s);
+      } else {
+        groups.push({ date: s.date, dayOfWeek: s.day_of_week, items: [s] });
+      }
+    }
+    return groups;
+  }, [suggestions]);
+
+  function handleClearRejected() {
+    setRejectedActivityIds(new Set());
+  }
 
   function handleBackToLayer() {
     if (router.canGoBack()) {
@@ -240,32 +279,53 @@ export default function AiScheduleScreen() {
             🕎 דולגו תאריכים שנופלים על חג: {skippedLabel}
           </ThemedText>
         )}
+        {(attemptsUsed > 1 || validationNotes.length > 0) && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+            🧠 הסוכן בדק את עצמו {attemptsUsed} פעמים לפני שסיים
+            {validationNotes.length > 0 ? ` — תוקנו: ${validationNotes.join('; ')}` : ''}
+          </ThemedText>
+        )}
+        {rejectedActivityIds.size > 0 && (
+          <View style={styles.rejectedRow}>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+              🚫 מוחרגות {rejectedActivityIds.size} פעילויות שסומנו כלא רצויות בטיוטה קודמת
+            </ThemedText>
+            <Button label="נקה החרגות" variant="ghost" size="small" fullWidth={false} onPress={handleClearRejected} />
+          </View>
+        )}
 
         {suggestions.length > 0 && (
           <>
             <ThemedText type="subtitle" style={styles.rtlText}>
-              הצעת הלו״ז ({selectedDates.size} מתוך {suggestions.length} נבחרו)
+              הצעת הלו״ז ({selectedKeys.size} מתוך {suggestions.length} נבחרו)
             </ThemedText>
             <View style={styles.list}>
-              {suggestions.map((s) => (
-                <Card key={s.date} style={styles.suggestionCard}>
-                  <Checkbox
-                    checked={selectedDates.has(s.date)}
-                    onToggle={() => toggleSelected(s.date)}
-                    label={`${toIsraeliDate(s.date)} (${DAY_OF_WEEK_LABELS[s.day_of_week]}) — ${s.activity_name}`}
-                    strikethrough={false}
-                  />
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
-                    {ACTIVITY_TYPE_LABELS[s.activity_type]} · {s.reason}
+              {suggestionsByDate.map((group) => (
+                <Card key={group.date} style={styles.dateGroupCard}>
+                  <ThemedText type="smallBold" style={styles.rtlText}>
+                    {toIsraeliDate(group.date)} ({DAY_OF_WEEK_LABELS[group.dayOfWeek]})
                   </ThemedText>
+                  {group.items.map((s) => (
+                    <View key={suggestionKey(s)} style={styles.suggestionRow}>
+                      <Checkbox
+                        checked={selectedKeys.has(suggestionKey(s))}
+                        onToggle={() => toggleSelected(suggestionKey(s))}
+                        label={`${ACTIVITY_TYPE_LABELS[s.activity_type]}: ${s.activity_name}`}
+                        strikethrough={false}
+                      />
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.rtlText}>
+                        {s.reason}
+                      </ThemedText>
+                    </View>
+                  ))}
                 </Card>
               ))}
             </View>
             <Button
-              label={`הוסף ${selectedDates.size} פעילויות ללוח`}
+              label={`הוסף ${selectedKeys.size} פעילויות ללוח`}
               onPress={handleCommit}
               loading={isCommitting}
-              disabled={selectedDates.size === 0}
+              disabled={selectedKeys.size === 0}
             />
           </>
         )}
@@ -311,7 +371,16 @@ const styles = StyleSheet.create({
   list: {
     gap: Spacing.two,
   },
-  suggestionCard: {
-    gap: Spacing.one,
+  dateGroupCard: {
+    gap: Spacing.two,
+  },
+  suggestionRow: {
+    gap: 2,
+  },
+  rejectedRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
 });

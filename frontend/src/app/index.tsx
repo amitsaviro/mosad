@@ -1,6 +1,6 @@
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { getActivityCommentsUnreadCount } from '@/api/activities';
 import { ApiError } from '@/api/client';
@@ -32,6 +32,11 @@ import { Layer, User } from '@/types';
 export default function DashboardScreen() {
   const { user, logout, refreshUser } = useAuth();
   const router = useRouter();
+  // "title" (48px) wraps onto 2-3 lines on a phone-width screen --
+  // narrow viewports get the smaller "subtitle" size instead so the
+  // greeting stays roughly one line.
+  const { width } = useWindowDimensions();
+  const greetingTextType = width < 420 ? 'subtitle' : 'title';
   const [layers, setLayers] = useState<Layer[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +208,7 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View style={styles.headerTextBlock}>
-            <ThemedText type="title" style={styles.rtlText}>
+            <ThemedText type={greetingTextType} style={styles.rtlText}>
               שלום, {user?.full_name}
             </ThemedText>
             <View style={styles.badgeRow}>
