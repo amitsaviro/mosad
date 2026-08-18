@@ -42,6 +42,7 @@ export default function DashboardScreen() {
   const [newLayerName, setNewLayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [assignEmailByLayer, setAssignEmailByLayer] = useState<Record<string, string>>({});
+  const [assignErrorByLayer, setAssignErrorByLayer] = useState<Record<string, string>>({});
 
   const isAdmin = user?.role === 'institution_admin';
   const hasNoGroupYet = !user?.institution_id;
@@ -154,9 +155,17 @@ export default function DashboardScreen() {
   async function handleAssign(layerId: string) {
     const email = assignEmailByLayer[layerId]?.trim();
     if (!email) return;
+    setAssignErrorByLayer((prev) => ({ ...prev, [layerId]: '' }));
+    // Matched against the institution's own member list, not looked up
+    // directly by email -- a counselor has to register AND join the
+    // institution (via some layer's join code) before an admin can find
+    // and assign them, same as any other member.
     const match = counselors.find((c) => c.email === email);
     if (!match) {
-      setError('משתמש זה אינו קיים (עליו קודם להירשם ולהצטרף עם קוד)');
+      setAssignErrorByLayer((prev) => ({
+        ...prev,
+        [layerId]: 'משתמש זה אינו קיים במוסד (עליו קודם להירשם ולהצטרף עם קוד הצטרפות)',
+      }));
       return;
     }
     try {
@@ -164,7 +173,10 @@ export default function DashboardScreen() {
       setAssignEmailByLayer((prev) => ({ ...prev, [layerId]: '' }));
       await loadData();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'ההוספה נכשלה');
+      setAssignErrorByLayer((prev) => ({
+        ...prev,
+        [layerId]: err instanceof ApiError ? err.message : 'ההוספה נכשלה',
+      }));
     }
   }
 
@@ -340,6 +352,11 @@ export default function DashboardScreen() {
                         fullWidth={false}
                       />
                     </View>
+                    {assignErrorByLayer[item.id] && (
+                      <ThemedText themeColor="danger" type="small" style={styles.rtlText}>
+                        {assignErrorByLayer[item.id]}
+                      </ThemedText>
+                    )}
                   </View>
                 )}
 
