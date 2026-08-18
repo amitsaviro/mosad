@@ -9,3 +9,5 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 hdate
+langgraph
+langchain-anthropic

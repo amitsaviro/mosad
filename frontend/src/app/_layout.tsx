@@ -48,6 +48,7 @@ function RootNavigator() {
       <Stack.Screen name="layer/[id]/chat" options={{ title: 'צ׳אט' }} />
       <Stack.Screen name="layer/[id]/trips/index" options={{ title: 'תיקי טיול' }} />
       <Stack.Screen name="layer/[id]/trips/[tripId]" options={{ title: 'תיק טיול' }} />
+      <Stack.Screen name="layer/[id]/ai-schedule" options={{ title: 'לו״ז חכם' }} />
       <Stack.Screen name="profile" options={{ title: 'הגדרות' }} />
       <Stack.Screen name="activities/index" options={{ title: 'מאגר פעילויות' }} />
       <Stack.Screen name="activities/new" options={{ title: 'פעילות חדשה' }} />

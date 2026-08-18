@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     jwt_secret: str            # secret key used to sign/verify login tokens
     jwt_algorithm: str = "HS256"     # default if not set in .env
     jwt_expire_minutes: int = 1440   # default if not set in .env (24 hours)
+    # Optional: powers the AI scheduling agent's real reasoning step.
+    # Without it, that agent falls back to a plain ratings-based
+    # heuristic instead of failing outright.
+    anthropic_api_key: str | None = None
 
 
 # Created once, at import time. Every other file imports this same

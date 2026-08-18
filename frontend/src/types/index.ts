@@ -291,3 +291,23 @@ export type Trip = {
   meals: TripMeal[];
 };
 
+export type LayerScheduleProfile = {
+  meeting_days: DayOfWeek[];
+  group_character: string | null;
+};
+
+export type AiScheduleSuggestion = {
+  date: string; // "YYYY-MM-DD"
+  day_of_week: DayOfWeek;
+  activity_id: string;
+  activity_name: string;
+  activity_type: ActivityType;
+  reason: string;
+};
+
+export type AiScheduleResponse = {
+  suggestions: AiScheduleSuggestion[];
+  skipped_holiday_dates: string[];
+  warning: string | null;
+};
+

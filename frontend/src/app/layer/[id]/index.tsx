@@ -274,6 +274,15 @@ export default function LayerDetailScreen() {
               fullWidth={false}
               onPress={() => router.push(`/layer/${id}/trips`)}
             />
+            {layer?.can_manage && (
+              <Button
+                label="🤖 לו״ז חכם"
+                variant="secondary"
+                size="small"
+                fullWidth={false}
+                onPress={() => router.push(`/layer/${id}/ai-schedule`)}
+              />
+            )}
             {!isAdmin && layer?.is_assigned && <ConfirmButton label="עזוב שכבה" onConfirm={handleLeaveLayer} />}
             {isAdmin && <ConfirmButton label="מחק שכבה" onConfirm={handleDeleteLayer} />}
           </View>

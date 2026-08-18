@@ -13,6 +13,7 @@ from app.models.counselor_layer_assignment import CounselorLayerAssignment
 from app.models.institution import Institution
 from app.models.institution_key_date import InstitutionKeyDate
 from app.models.layer import Layer
+from app.models.layer_schedule_profile import LayerScheduleProfile
 from app.models.participant import Participant
 from app.models.participant_note import ParticipantNote
 from app.models.trip import (
@@ -55,4 +56,5 @@ __all__ = [
     "TripLayer",
     "TripContact",
     "TripMeal",
+    "LayerScheduleProfile",
 ]

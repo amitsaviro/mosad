@@ -1,5 +1,5 @@
 import { api } from '@/api/client';
-import { Layer, User } from '@/types';
+import { AiScheduleResponse, DayOfWeek, Layer, LayerScheduleProfile, User } from '@/types';
 
 export function listLayers() {
   return api.get<Layer[]>('/layers');
@@ -39,4 +39,22 @@ export function assignCounselor(layerId: string, userId: string) {
 
 export function unassignCounselor(layerId: string, userId: string) {
   return api.delete<void>(`/layers/${layerId}/assign-counselor/${userId}`);
+}
+
+export function getScheduleProfile(layerId: string) {
+  return api.get<LayerScheduleProfile>(`/layers/${layerId}/schedule-profile`);
+}
+
+export function setScheduleProfile(layerId: string, meetingDays: DayOfWeek[], groupCharacter: string | null) {
+  return api.put<LayerScheduleProfile>(`/layers/${layerId}/schedule-profile`, {
+    meeting_days: meetingDays,
+    group_character: groupCharacter,
+  });
+}
+
+export function generateAiSchedule(layerId: string, startDate: string, endDate: string) {
+  return api.post<AiScheduleResponse>(`/layers/${layerId}/ai-schedule`, {
+    start_date: startDate,
+    end_date: endDate,
+  });
 }
