@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.routers import (
     activities,
     auth,
@@ -22,9 +23,11 @@ app = FastAPI(title="Mosad API")
 # was loaded from, unless the server explicitly allows it (CORS).
 # Expo's web dev server runs on :8081, this API on :8000 — different
 # origins — so without this, the frontend couldn't call the backend.
+# The allowed list comes from CORS_ORIGINS (comma-separated) so the
+# deployed web build's real origin can be added without a code change.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8081", "http://localhost:19006"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

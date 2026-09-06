@@ -1,0 +1,45 @@
+# Render "Blueprint" -- lets Render spin up the web service AND the
+# Postgres database together from one repo, instead of clicking through
+# separate setup screens for each. Deploy via Render's dashboard:
+# "New" -> "Blueprint" -> pick this repo.
+#
+# NOTE: the free Postgres plan auto-deletes the database after 90 days.
+# Fine for an initial deploy/demo, but upgrade the "mosad-db" plan
+# before day 90 if the data needs to stick around.
+databases:
+  - name: mosad-db
+    plan: free
+    databaseName: mosad
+    user: mosad
+
+services:
+  - type: web
+    name: mosad-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Migrations run before the server starts on every deploy, so the
+    # schema is always current without a manual step.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mosad-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_MINUTES
+        value: "1440"
+      # Set in the Render dashboard after the first deploy, not stored
+      # here -- optional; without it the AI scheduler falls back to its
+      # ratings-based heuristic.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Update once the frontend's real web origin (if any) is known --
+      # native app requests aren't subject to CORS at all, so this only
+      # matters if a web build is also hosted somewhere.
+      - key: CORS_ORIGINS
+        value: http://localhost:8081,http://localhost:19006
