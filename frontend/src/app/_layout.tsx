@@ -1,5 +1,5 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import Head from 'expo-router/head';
 import { useEffect } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, useColorScheme } from 'react-native';
