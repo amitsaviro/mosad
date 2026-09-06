@@ -37,6 +37,19 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "545618a3-45fa-42ce-8ac5-fb4a97f0364d"
+      }
+    },
+    "owner": "amitsaviro",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/545618a3-45fa-42ce-8ac5-fb4a97f0364d"
     }
   }
 }
